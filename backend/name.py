@@ -126,12 +126,21 @@ def name_from_titles(titles: list[str]) -> Piece:
         for word in words
         if word not in colors and not re.fullmatch(r"\d{3,4}", word) and word not in garment_tokens]
     brand = title_case(most_common(brand_tokens) or docs[0][0] or "Unknown")
-    type_number = most_common([
-        word
-        for words in docs
-        for word in words
-        if re.fullmatch(r"\d{3,4}", word)])
+    # 501 влегува само ако истиот број е во најмалку 60% од насловите.
+    number_counts = {}
+    for words in docs:
+        for word in set(words):
+            if re.fullmatch(r"\d{3,4}", word):
+                number_counts[word] = number_counts.get(word, 0) + 1
+    need = math.ceil(len(docs) * 0.6)
+    type_number = ""
+    type_count = 0
+    for word, count in number_counts.items():
+        if count >= need and count > type_count:
+            type_number = word
+            type_count = count
+    garment = "" if label == "PIECE" else label.lower()
+    head = " ".join(part for part in (brand, type_number or garment) if part)
     color = detect_color(usable)
-    head = " ".join(part for part in (brand, type_number) if part)
     name = f"{head}, {color}" if color else head
     return Piece(name=name, kind=kind, label=label)

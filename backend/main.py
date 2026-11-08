@@ -6,11 +6,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 from alerts import arm, check_due, load as load_alerts
 from auth import login, public_user, register, start_session, user_from_token
-from ebay import env, listings_for_name, titles_from_image
+from ebay import env, listings_for_name
 from models import Piece
-from name import name_from_titles
-from prices import split_prices
+from prices import for_name
 from profile import set_sizes, size_for
+from image import piece_from_image
 
 def watch() -> None:
     while True:
@@ -131,11 +131,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "image"})
             return
         try:
-            titles = titles_from_image(image)
-            piece = name_from_titles(titles)
+            piece = piece_from_image(image)
             size = size_for(user, piece.kind)
-            listings = [] if piece.name == "Unknown" else listings_for_name(piece.name)
-            fresh, used = split_prices(listings, size)
+            fresh, used = for_name(piece.name, size)
         except RuntimeError as error:
             self.send_json(502, {"error": str(error)})
             return
@@ -153,7 +151,7 @@ class Handler(BaseHTTPRequestHandler):
         piece = Piece(name=name, kind=kind, label=str(body.get("label", "")).strip())
         size = size_for(user, piece.kind)
         try:
-            fresh, used = split_prices(listings_for_name(piece.name), size)
+            fresh, used = for_name(piece.name, size)
         except RuntimeError as error:
             self.send_json(502, {"error": str(error)})
             return
