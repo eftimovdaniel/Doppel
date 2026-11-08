@@ -43,7 +43,6 @@ def apply_check(alert: Alert, fresh: list[Listing], used: list[Listing], now: fl
     price = cheapest(fresh, used)
     alert.last_checked_at = now
     if price is None or price >= alert.last_price:
-        alert.dropped = False
         return False
     alert.last_price = price
     alert.dropped = True
