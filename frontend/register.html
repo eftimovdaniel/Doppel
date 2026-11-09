@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doppel — Register</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="register">
+  <header>
+    <a class="brand" href="index.html">
+      <span class="mark" aria-hidden="true"><b>D</b><span class="stripes"><i></i><i></i></span></span>
+      <span>
+        <span class="word">DOPP<em>E</em>L</span>
+        <span class="rule"></span>
+      </span>
+    </a>
+    <nav>
+      <a href="login.html">Login</a>
+    </nav>
+  </header>
+
+  <main class="auth">
+    <div class="kicker">ACCOUNT</div>
+    <h1>Register</h1>
+    <p class="sub">One clothes size and one shoe size. Listings that are not that size stay off the lists.</p>
+    <form id="register-form">
+      <label class="field">Name<input name="name" autocomplete="name" required></label>
+      <label class="field">Email<input type="email" name="email" autocomplete="email" required></label>
+      <label class="field">Password<input type="password" name="password" autocomplete="new-password" required></label>
+      <div class="split">
+        <label class="field">Clothes size<input name="clothes_size" autocomplete="off" placeholder="M"></label>
+        <label class="field">Shoe size<input name="shoe_size" autocomplete="off" placeholder="42"></label>
+      </div>
+      <button class="btn primary" type="submit">Create account</button>
+      <p class="error" data-error></p>
+    </form>
+    <p class="note">Already registered? <a href="login.html">Login</a></p>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
