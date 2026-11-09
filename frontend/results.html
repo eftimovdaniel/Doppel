@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doppel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="results">
+  <header>
+    <a class="brand" href="index.html">
+      <span class="mark" aria-hidden="true"><b>D</b><span class="stripes"><i></i><i></i></span></span>
+      <span>
+        <span class="word">DOPP<em>E</em>L</span>
+        <span class="rule"></span>
+      </span>
+    </a>
+    <nav>
+      <a href="index.html">New photo</a>
+      <a class="login" data-account href="login.html">Login</a>
+    </nav>
+  </header>
+
+  <div class="marquee" aria-hidden="true"><span>SEE IT / NAME IT / WAIT FOR IT / SEE IT / NAME IT / WAIT FOR IT / </span></div>
+
+  <main class="page" id="empty" hidden>
+    <div class="kicker">THE NAME</div>
+    <h2 class="found">No photo yet</h2>
+    <p class="sub">Take a photo or upload one piece. The crop finds the name.</p>
+    <a class="btn primary" href="index.html">Take a photo</a>
+  </main>
+
+  <main class="page" id="hit" hidden>
+    <div class="page-head">
+      <div>
+        <div class="kicker">THE NAME</div>
+        <h2 class="found" id="piece-name"></h2>
+        <p class="meta" id="piece-meta"></p>
+      </div>
+      <button class="btn primary" id="watch" type="button">Watch this price</button>
+    </div>
+
+    <div class="query">
+      <figure class="qimg">
+        <div class="tape"></div>
+        <img id="crop" alt="The crop that was named">
+        <div class="tag">YOUR CROP</div>
+      </figure>
+      <div class="readout" id="readout"></div>
+    </div>
+
+    <p class="note" data-status></p>
+
+    <div class="lists">
+      <section>
+        <div class="list-head">
+          <h3>New</h3>
+          <span>CHEAPEST FIRST</span>
+        </div>
+        <div id="new-list"></div>
+      </section>
+      <section>
+        <div class="list-head">
+          <h3>Used</h3>
+          <span>CHEAPEST FIRST</span>
+        </div>
+        <div id="used-list"></div>
+      </section>
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

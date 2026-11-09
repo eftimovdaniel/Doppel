@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doppel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="home">
+  <header>
+    <a class="brand" href="index.html">
+      <span class="mark" aria-hidden="true"><b>D</b><span class="stripes"><i></i><i></i></span></span>
+      <span>
+        <span class="word">DOPP<em>E</em>L</span>
+        <span class="rule"></span>
+      </span>
+    </a>
+    <nav>
+      <a href="#how">How it works</a>
+      <a class="login" data-account href="login.html">Login</a>
+    </nav>
+  </header>
+
+  <div class="marquee" aria-hidden="true"><span>SEE IT &nbsp;→&nbsp; NAME IT &nbsp;→&nbsp; WAIT FOR IT &nbsp;/&nbsp; SEE IT &nbsp;→&nbsp; NAME IT &nbsp;→&nbsp; WAIT FOR IT &nbsp;/&nbsp; SEE IT &nbsp;→&nbsp; NAME IT &nbsp;→&nbsp; WAIT FOR IT &nbsp;/&nbsp; SEE IT &nbsp;→&nbsp; NAME IT &nbsp;→&nbsp; WAIT FOR IT &nbsp;/&nbsp;</span></div>
+
+  <section class="hero">
+    <div>
+      <div class="kicker">ONE CROP. ONE NAME.</div>
+      <h1>DOPP<em>E</em>L</h1>
+      <p class="sub">Photograph one piece. The crop finds the name. The name finds the cheapest new and used listings in your size.</p>
+      <div class="actions">
+        <button class="btn primary" id="shoot" type="button">Take a photo</button>
+        <button class="btn" id="pick" type="button">Upload image</button>
+      </div>
+      <p class="note" data-note>A SIZE AND AN ALERT NEED AN ACCOUNT</p>
+      <p class="note" data-status></p>
+    </div>
+
+    <div class="stage">
+      <div class="stack">
+        <figure class="polaroid p1 scan">
+          <div class="tape"></div>
+          <img src="img/crop.jpg" alt="A photographed piece, cropped out of the scene">
+          <div class="tag">THE CROP</div>
+        </figure>
+        <figure class="polaroid p2">
+          <div class="tape blue"></div>
+          <img src="img/letters.jpg" alt="">
+          <div class="tag dark">LEVI'S JEANS, BLUE</div>
+        </figure>
+      </div>
+      <label class="drop">
+        <strong>DROP ONE PIECE HERE</strong>
+        <span>JPG / PNG — MAX 8 MB</span>
+        <input id="file" type="file" accept="image/jpeg,image/png,image/webp">
+      </label>
+    </div>
+  </section>
+
+  <section class="steps" id="how">
+    <article class="step">
+      <small>01</small>
+      <h2>See it</h2>
+      <p>Crop one piece out of the photo. Everything else in the frame is ignored.</p>
+    </article>
+    <article class="step">
+      <small>02</small>
+      <h2>Name it</h2>
+      <p>The listing titles become one name. If they agree, that is the model. If not, the brand, the type, and the color.</p>
+    </article>
+    <article class="step">
+      <small>03</small>
+      <h2>Wait for it</h2>
+      <p>An alert watches that name and your size. You hear about it only when the price drops.</p>
+    </article>
+  </section>
+
+  <section id="camera" class="camera" hidden>
+    <header>
+      <span class="word">DOPP<em>E</em>L</span>
+      <button class="login" id="close-camera" type="button">Close</button>
+    </header>
+    <div class="view">
+      <video id="video" playsinline autoplay muted></video>
+    </div>
+    <div class="shutter-row">
+      <button id="shutter" type="button" aria-label="Take photo"></button>
+    </div>
+  </section>
+  <script src="app.js"></script>
+</body>
+</html>
