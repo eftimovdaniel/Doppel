@@ -3,14 +3,26 @@ import os
 import threading
 from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlparse
 from alerts import arm, check_due, load as load_alerts
-from auth import login, public_user, register, start_session, user_from_token
+from auth import login, public_user, register, reset_password, start_session, user_from_token
 from ebay import env, listings_for_name
 from models import Piece
 from prices import for_name
 from profile import set_sizes, size_for
 from image import piece_from_image
+
+FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
+PAGES = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
 
 def watch() -> None:
     while True:
@@ -65,15 +77,29 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
-        if path != "/alerts":
+        if path == "/alerts":
+            user = self.current_user()
+            if not user:
+                return
+            check_due(listings_for_name)
+            mine = [asdict(alert) for alert in load_alerts() if alert.user_id == user.id]
+            self.send_json(200, {"alerts": mine})
+            return
+        self.serve_page(path)
+
+    def serve_page(self, path: str) -> None:
+        root = FRONTEND.resolve()
+        rel = "index.html" if path == "/" else path.lstrip("/")
+        target = (root / rel).resolve()
+        if root not in target.parents or not target.is_file():
             self.send_json(404, {"error": "not found"})
             return
-        user = self.current_user()
-        if not user:
-            return
-        check_due(listings_for_name)
-        mine = [asdict(alert) for alert in load_alerts() if alert.user_id == user.id]
-        self.send_json(200, {"alerts": mine})
+        raw = target.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", PAGES.get(target.suffix.lower(), "application/octet-stream"))
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
@@ -86,6 +112,8 @@ class Handler(BaseHTTPRequestHandler):
             self.register(body)
         elif path == "/login":
             self.sign_in(body)
+        elif path == "/reset":
+            self.reset(body)
         elif path == "/profile":
             self.profile(body)
         elif path == "/recognize":
@@ -108,6 +136,17 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.send_json(200, {"token": start_session(user), "user": public_user(user)})
 
+    def reset(self, body: dict) -> None:
+        email = str(body.get("email", "")).strip()
+        password = str(body.get("password", ""))
+        if not email or not password:
+            self.send_json(400, {"error": "email, password"})
+            return
+        if not reset_password(email, password):
+            self.send_json(404, {"error": "no account"})
+            return
+        self.send_json(200, {"ok": True})
+
     def sign_in(self, body: dict) -> None:
         user = login(str(body.get("email", "")), str(body.get("password", "")))
         if user is None:
@@ -119,7 +158,10 @@ class Handler(BaseHTTPRequestHandler):
         user = self.current_user()
         if not user:
             return
-        updated = set_sizes(user.id,str(body.get("clothes_size", "")),str(body.get("shoe_size", "")),)
+        updated = set_sizes(user.id, str(body.get("clothes_size", "")), str(body.get("shoe_size", "")))
+        if updated is None:
+            self.send_json(401, {"error": "login"})
+            return
         self.send_json(200, {"user": public_user(updated)})
 
     def recognize(self, body: dict) -> None:
@@ -133,7 +175,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             piece = piece_from_image(image)
             size = size_for(user, piece.kind)
-            fresh, used = for_name(piece.name, size)
+            fresh, used = for_name(piece.name, size, piece.kind)
         except RuntimeError as error:
             self.send_json(502, {"error": str(error)})
             return
@@ -151,7 +193,7 @@ class Handler(BaseHTTPRequestHandler):
         piece = Piece(name=name, kind=kind, label=str(body.get("label", "")).strip())
         size = size_for(user, piece.kind)
         try:
-            fresh, used = for_name(piece.name, size)
+            fresh, used = for_name(piece.name, size, piece.kind)
         except RuntimeError as error:
             self.send_json(502, {"error": str(error)})
             return

@@ -1,4 +1,4 @@
-const API = "http://127.0.0.1:8787";
+const API = location.port === "8787" ? "" : "http://127.0.0.1:8787";
 
 function token() {
   return localStorage.getItem("doppel-token") || "";
@@ -48,8 +48,12 @@ function readable(error) {
   if (error === "no price") return "Nothing in that size to watch yet.";
   if (error === "name, email, password") return "Name, email, and password are required.";
   if (error === "image") return "Choose a photo first.";
+  if (error === "no account") return "No account with that email.";
+  if (error === "email, password") return "Email and a new password are required.";
   if (!error) return "Something went wrong.";
-  return String(error);
+  const text = String(error);
+  if (text.startsWith("eBay")) return "eBay did not name that photo. Try it again.";
+  return text.length > 160 ? "Something went wrong." : text;
 }
 
 function paintAccount() {
@@ -78,7 +82,6 @@ function formError(error) {
 async function continuePending() {
   const pending = sessionStorage.getItem("doppel-pending");
   if (!pending || !token()) return false;
-  sessionStorage.removeItem("doppel-pending");
   await recognize(pending);
   return true;
 }
@@ -93,7 +96,12 @@ async function recognize(dataUrl) {
   setBusy(true);
   try {
     const result = await request("/recognize", { image });
-    sessionStorage.setItem("doppel-result", JSON.stringify({ ...result, image }));
+    try {
+      sessionStorage.setItem("doppel-result", JSON.stringify({ ...result, image }));
+      sessionStorage.removeItem("doppel-pending");
+    } catch {
+      throw new Error("That photo is too large to keep.");
+    }
     location.href = "results.html";
   } finally {
     setBusy(false);
@@ -176,7 +184,8 @@ function initHome() {
   }
 
   document.querySelector("#shoot")?.addEventListener("click", async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
+    const status = document.querySelector("[data-status]");
+    if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
       file.click();
       return;
     }
@@ -190,7 +199,7 @@ function initHome() {
       await video.play();
     } catch {
       stopCamera();
-      file.click();
+      if (status) status.textContent = "The camera is blocked. Use Upload image.";
     }
   });
 
@@ -212,6 +221,10 @@ function initHome() {
 }
 
 function initLogin() {
+  if (new URLSearchParams(location.search).get("reset") === "1") {
+    const notice = document.querySelector("[data-notice]");
+    if (notice) notice.textContent = "Password updated. Log in with the new one.";
+  }
   document.querySelector("#login-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -223,6 +236,25 @@ function initLogin() {
       });
       saveSession(data);
       if (!(await continuePending())) location.href = "index.html";
+    } catch (error) {
+      formError(error);
+    }
+  });
+}
+
+function initForgot() {
+  document.querySelector("#forgot-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    formError({ message: "" });
+    if (form.password.value !== form.again.value) {
+      formError({ message: "The two passwords do not match." });
+      return;
+    }
+    try {
+      await request("/reset", { email: form.email.value, password: form.password.value });
+      clearSession();
+      location.href = "login.html?reset=1";
     } catch (error) {
       formError(error);
     }
@@ -348,6 +380,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (page === "home") initHome();
   if (page === "login") initLogin();
+  if (page === "forgot") initForgot();
   if (page === "register") initRegister();
   if (page === "results") initResults();
 });

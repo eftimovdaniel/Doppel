@@ -11,6 +11,7 @@ TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
 SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search"
 IMAGE_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search_by_image"
 ITEM_URL = "https://api.ebay.com/buy/browse/v1/item"
+GROUP_URL = "https://api.ebay.com/buy/browse/v1/item/get_items_by_item_group"
 SCOPE = "https://api.ebay.com/oauth/api_scope"
 
 _token = ""
@@ -88,19 +89,45 @@ def read_size(aspects: list[dict]) -> str:
     ranked.sort(key=lambda item: item[0])
     return ranked[0][1] if ranked else ""
 
-def listing_from_summary(summary: dict) -> Listing | None:
-    price = summary.get("price") or {}
+def paid_price(item: dict) -> tuple[float, str] | None:
+    price = item.get("price") or {}
     value = price.get("value")
-    item_id = str(summary.get("itemId", ""))
-    if value is None or not item_id:
+    if value is None:
         return None
-    href = summary.get("itemHref") or f"{ITEM_URL}/{urllib.parse.quote(item_id, safe='')}"
-    item = ebay_json(str(href))
-    size = read_size(item.get("localizedAspects") or [])
-    if not size:
+    return float(value), str(price.get("currency") or "USD")
+
+def listing_from_item(item: dict, condition: str) -> Listing | None:
+    paid = paid_price(item)
+    size = read_size(item.get("localizedAspects") or []) or str(item.get("size") or "").strip()
+    item_id = str(item.get("itemId", ""))
+    if paid is None or not size or not item_id:
         return None
+    value, currency = paid
+    condition_id = str(item.get("conditionId") or "")
+    if condition_id:
+        condition = "new" if condition_id == "1000" else "used"
+    return Listing(id=item_id, price=value, currency=currency, condition=condition, size=size, where="eBay")
+
+def listings_from_summary(summary: dict) -> list[Listing]:
+    if (summary.get("price") or {}).get("value") is None or not summary.get("itemId"):
+        return []
     condition = "new" if str(summary.get("conditionId", "")) == "1000" else "used"
-    return Listing(id=item_id,price=float(value),currency=str(price.get("currency", "USD")),condition=condition,size=size,where="eBay",)
+    href = summary.get("itemHref") or f"{ITEM_URL}/{urllib.parse.quote(str(summary['itemId']), safe='')}"
+    item = ebay_json(str(href))
+    group_id = str((item.get("primaryItemGroup") or {}).get("itemGroupId") or "")
+    if group_id:
+        grouped = ebay_json(f"{GROUP_URL}?item_group_id={urllib.parse.quote(group_id)}")
+        found = []
+        seen = set()
+        for child in grouped.get("items") or []:
+            listing = listing_from_item(child, condition)
+            if listing and listing.id not in seen:
+                seen.add(listing.id)
+                found.append(listing)
+        if found:
+            return found
+    one = listing_from_item(item, condition)
+    return [one] if one else []
 
 def titles_from_image(image: str) -> list[str]:
     data = ebay_json(IMAGE_URL, "POST", {"image": plain_base64(image)})
@@ -116,7 +143,5 @@ def listings_for_name(name: str) -> list[Listing]:
     data = ebay_json(f"{SEARCH_URL}?{query}")
     listings = []
     for summary in data.get("itemSummaries") or []:
-        listing = listing_from_summary(summary)
-        if listing:
-            listings.append(listing)
+        listings.extend(listings_from_summary(summary))
     return listings
