@@ -1,5 +1,6 @@
 import json
 import os
+import socket
 import threading
 from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -205,7 +206,9 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     port = int(env("PORT") or "8787")
-    host = env("HOST") or "0.0.0.0"
+    host = env("IP") or env("HOST") or "0.0.0.0"
+    if ":" in host:
+        ThreadingHTTPServer.address_family = socket.AF_INET6
     threading.Thread(target=watch, daemon=True).start()
     server = ThreadingHTTPServer((host, port), Handler)
     print(f"Doppel backend on http://{host}:{port}", flush=True)
