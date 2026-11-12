@@ -529,10 +529,11 @@ button.login {
 
 body.is-busy { cursor: progress; }
 
-@media (max-width: 980px) {
+@media (max-width: 1100px) {
   header, .page { padding-left: 20px; padding-right: 20px; }
-  .hero { width: min(100% - 40px, 1180px); padding-top: 32px; }
-  .hero, .query, .lists, .steps { grid-template-columns: 1fr; }
+  .hero { width: min(100% - 32px, 720px); padding-top: 32px; }
+  .hero, .query, .lists, .steps, .page-head { grid-template-columns: 1fr; }
+  .page-head { display: grid; }
   .step { border-right: 0; border-bottom: var(--line) solid var(--ink); }
   .stack { height: 420px; }
   nav a:not(.login) { display: none; }

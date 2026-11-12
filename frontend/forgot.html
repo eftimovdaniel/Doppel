@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doppel — Forgot password</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="forgot">
+  <header>
+    <a class="brand" href="index.html">
+      <span class="mark" aria-hidden="true"><b>D</b><span class="stripes"><i></i><i></i></span></span>
+      <span>
+        <span class="word">DOPP<em>E</em>L</span>
+        <span class="rule"></span>
+      </span>
+    </a>
+    <nav>
+      <a href="login.html">Login</a>
+    </nav>
+  </header>
+
+  <main class="auth">
+    <div class="kicker">ACCOUNT</div>
+    <h1>New password</h1>
+    <p class="sub">Enter the email on the account and a new password. The old sessions are signed out.</p>
+    <form id="forgot-form">
+      <label class="field">Email<input type="email" name="email" autocomplete="email" required></label>
+      <label class="field">New password<input type="password" name="password" autocomplete="new-password" required></label>
+      <label class="field">Repeat password<input type="password" name="again" autocomplete="new-password" required></label>
+      <button class="btn primary" type="submit">Save password</button>
+      <p class="error" data-error></p>
+    </form>
+    <p class="note"><a href="login.html">Back to login</a></p>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

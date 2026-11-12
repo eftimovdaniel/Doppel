@@ -1,34 +1,10 @@
 import hashlib
 import hmac
-import json
 import secrets
+import sqlite3
 import uuid
-from dataclasses import asdict
-from pathlib import Path
 from models import User
-
-PATH = Path(__file__).parent / "data" / "users.json"
-SESSIONS = Path(__file__).parent / "data" / "sessions.json"
-
-def load_users() -> list[User]:
-    if not PATH.exists():
-        return []
-    raw = json.loads(PATH.read_text() or "[]")
-    return [User(**item) for item in raw]
-
-def save_users(users: list[User]) -> None:
-    PATH.parent.mkdir(parents=True, exist_ok=True)
-    PATH.write_text(json.dumps([asdict(user) for user in users], indent=2))
-
-def load_sessions() -> dict[str, str]:
-    if not SESSIONS.exists():
-        return {}
-    raw = json.loads(SESSIONS.read_text() or "{}")
-    return raw if isinstance(raw, dict) else {}
-
-def save_sessions(sessions: dict[str, str]) -> None:
-    SESSIONS.parent.mkdir(parents=True, exist_ok=True)
-    SESSIONS.write_text(json.dumps(sessions, indent=2))
+from db import db, user_from_row
 
 def hash_password(password: str, salt: str | None = None) -> str:
     salt = salt or secrets.token_hex(16)
@@ -42,11 +18,9 @@ def check_password(password: str, stored: str) -> bool:
     return hmac.compare_digest(hash_password(password, salt), stored)
 
 def find_user(user_id: str) -> User | None:
-    for user in load_users():
-        if user.id == user_id:
-            return user
-    return None
-
+    with db() as con:
+        row = con.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return user_from_row(row) if row else None
 
 def public_user(user: User) -> dict:
     return {
@@ -57,35 +31,60 @@ def public_user(user: User) -> dict:
         "shoe_size": user.shoe_size,
     }
 
-
 def register(name: str, email: str, password: str) -> User | None:
-    users = load_users()
-    email = email.strip().lower()
-    if any(user.email == email for user in users):
+    user = User(id=str(uuid.uuid4()), name=name.strip(), email=email.strip().lower(), password_hash=hash_password(password), clothes_size="", shoe_size="")
+    try:
+        with db() as con:
+            con.execute(
+                "INSERT INTO users (id, name, email, password_hash, clothes_size, shoe_size) VALUES (?, ?, ?, ?, ?, ?)",
+                (user.id, user.name, user.email, user.password_hash, user.clothes_size, user.shoe_size),
+            )
+    except sqlite3.IntegrityError:
         return None
-    user = User(id=str(uuid.uuid4()),name=name.strip(),email=email,password_hash=hash_password(password),clothes_size="",shoe_size="",)
-    users.append(user)
-    save_users(users)
     return user
 
 def login(email: str, password: str) -> User | None:
-    email = email.strip().lower()
-    for user in load_users():
-        if user.email == email and check_password(password, user.password_hash):
-            return user
-    return None
+    with db() as con:
+        row = con.execute("SELECT * FROM users WHERE email = ?", (email.strip().lower(),)).fetchone()
+    if row is None or not check_password(password, row["password_hash"]):
+        return None
+    return user_from_row(row)
 
 def start_session(user: User) -> str:
     token = secrets.token_urlsafe(32)
-    sessions = load_sessions()
-    sessions[token] = user.id
-    save_sessions(sessions)
+    with db() as con:
+        con.execute("INSERT INTO sessions (token, user_id) VALUES (?, ?)", (token, user.id))
     return token
 
 def user_from_token(token: str) -> User | None:
     if not token:
         return None
-    user_id = load_sessions().get(token)
-    if not user_id:
-        return None
-    return find_user(user_id)
+    with db() as con:
+        row = con.execute(
+            "SELECT users.* FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token = ?",
+            (token,),
+        ).fetchone()
+    return user_from_row(row) if row else None
+
+def reset_password(email: str, password: str) -> bool:
+    email = email.strip().lower()
+    with db() as con:
+        cur = con.execute(
+            "UPDATE users SET password_hash = ? WHERE email = ?",
+            (hash_password(password), email),
+        )
+        if cur.rowcount == 0:
+            return False
+        con.execute("DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = ?)", (email,))
+    return True
+
+def set_sizes(user_id: str, clothes_size: str, shoe_size: str) -> User | None:
+    with db() as con:
+        cur = con.execute(
+            "UPDATE users SET clothes_size = ?, shoe_size = ? WHERE id = ?",
+            (clothes_size.strip(), shoe_size.strip(), user_id),
+        )
+        if cur.rowcount == 0:
+            return None
+        row = con.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return user_from_row(row) if row else None
