@@ -1,10 +1,11 @@
 import json
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from models import Alert, User
 
-PATH = Path(__file__).parent / "data" / "doppel.db"
+PATH = Path(os.environ.get("DOPPEL_DB") or Path(__file__).parent / "data" / "doppel.db")
 DATA = PATH.parent
 
 def connect() -> sqlite3.Connection:

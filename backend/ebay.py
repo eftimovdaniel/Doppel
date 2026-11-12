@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -18,6 +19,9 @@ _token = ""
 _token_until = 0.0
 
 def env(name: str) -> str:
+    found = os.environ.get(name, "").strip()
+    if found:
+        return found
     path = Path(__file__).parent / ".env"
     if not path.exists():
         return ""

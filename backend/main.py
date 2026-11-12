@@ -204,10 +204,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, asdict(alert))
 
 def main() -> None:
-    port = int(env("PORT") or os.environ.get("PORT") or "8787")
+    port = int(env("PORT") or "8787")
+    host = env("HOST") or "0.0.0.0"
     threading.Thread(target=watch, daemon=True).start()
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"Doppel backend on http://127.0.0.1:{port}")
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"Doppel backend on http://{host}:{port}", flush=True)
     server.serve_forever()
 
 if __name__ == "__main__":
