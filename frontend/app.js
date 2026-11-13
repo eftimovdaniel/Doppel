@@ -354,10 +354,38 @@ function fillList(selector, items) {
     return;
   }
   for (const item of items) {
-    const card = document.createElement("article");
+    const url = ebayUrl(item);
+    const card = document.createElement(url ? "a" : "article");
     card.className = "card line";
-    card.innerHTML = `<div><div class="who">${escapeHtml(item.size || "Size")}</div><div class="size">${escapeHtml(item.where || "eBay")}</div><div class="price">${escapeHtml(money(item))}</div></div>`;
+    if (url) {
+      card.href = url;
+      card.target = "_blank";
+      card.rel = "noopener noreferrer";
+    }
+    const heading = item.title || item.size || "Size";
+    const detail = [item.title ? item.size : "", url ? "Open on eBay" : (item.where || "eBay")].filter(Boolean).join(" · ");
+    card.innerHTML = `<div><div class="who">${escapeHtml(heading)}</div><div class="size">${escapeHtml(detail)}</div><div class="price">${escapeHtml(money(item))}</div></div>`;
     list.append(card);
+  }
+}
+
+function ebayUrl(item) {
+  const direct = ebayHref(item.url);
+  if (direct) return direct;
+  const parts = String(item.id || "").split("|");
+  const number = parts.length >= 2 ? parts[1] : String(item.id || "");
+  if (/^\d{6,}$/.test(number)) return `https://www.ebay.com/itm/${number}`;
+  return "";
+}
+
+function ebayHref(value) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== "https:" || (host !== "ebay.com" && !host.endsWith(".ebay.com"))) return "";
+    return url.href;
+  } catch {
+    return "";
   }
 }
 

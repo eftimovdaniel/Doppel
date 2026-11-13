@@ -27,6 +27,8 @@ class Listing:
     condition: Condition
     size: str
     where: str
+    url: str = ""
+    title: str = ""
 
 @dataclass
 class Alert:
