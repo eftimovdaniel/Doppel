@@ -7,6 +7,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from models import Listing
+from name import title_has_model
 
 TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
 SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search"
@@ -100,6 +101,18 @@ def paid_price(item: dict) -> tuple[float, str] | None:
         return None
     return float(value), str(price.get("currency") or "USD")
 
+def listing_url(item: dict, item_id: str) -> str:
+    found = str(item.get("itemWebUrl") or "").strip()
+    parsed = urllib.parse.urlparse(found)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme == "https" and (host == "ebay.com" or host.endswith(".ebay.com")):
+        return found
+    parts = item_id.split("|")
+    number = parts[1] if len(parts) >= 2 else ""
+    if number.isdigit():
+        return f"https://www.ebay.com/itm/{number}"
+    return ""
+
 def listing_from_item(item: dict, condition: str) -> Listing | None:
     paid = paid_price(item)
     size = read_size(item.get("localizedAspects") or []) or str(item.get("size") or "").strip()
@@ -110,7 +123,16 @@ def listing_from_item(item: dict, condition: str) -> Listing | None:
     condition_id = str(item.get("conditionId") or "")
     if condition_id:
         condition = "new" if condition_id == "1000" else "used"
-    return Listing(id=item_id, price=value, currency=currency, condition=condition, size=size, where="eBay")
+    return Listing(
+        id=item_id,
+        price=value,
+        currency=currency,
+        condition=condition,
+        size=size,
+        where="eBay",
+        url=listing_url(item, item_id),
+        title=str(item.get("title") or "").strip(),
+    )
 
 def listings_from_summary(summary: dict) -> list[Listing]:
     if (summary.get("price") or {}).get("value") is None or not summary.get("itemId"):
@@ -147,5 +169,7 @@ def listings_for_name(name: str) -> list[Listing]:
     data = ebay_json(f"{SEARCH_URL}?{query}")
     listings = []
     for summary in data.get("itemSummaries") or []:
+        if not title_has_model(name, str(summary.get("title", ""))):
+            continue
         listings.extend(listings_from_summary(summary))
     return listings
