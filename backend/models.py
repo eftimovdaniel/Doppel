@@ -31,6 +31,7 @@ class Listing:
     where: str
     url: str = ""
     title: str = ""
+    image: str = ""
 
 @dataclass
 class Alert:
