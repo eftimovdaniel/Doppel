@@ -52,7 +52,10 @@
       <div class="readout" id="readout"></div>
     </div>
 
-    <p class="note" data-status></p>
+    <div class="ask">
+      <p class="note" data-status></p>
+      <button class="btn" id="similar" type="button" hidden>Show similar</button>
+    </div>
 
     <div class="lists">
       <section>
@@ -65,11 +68,18 @@
       <section>
         <div class="list-head">
           <h3>Used</h3>
-          <span>CHEAPEST FIRST</span>
+          <span>SAME PIECE, WORN</span>
         </div>
         <div id="used-list"></div>
       </section>
     </div>
+    <section id="similar-section" hidden>
+      <div class="list-head">
+        <h3>Similar</h3>
+        <span>NOT THE SAME PIECE</span>
+      </div>
+      <div id="similar-list"></div>
+    </section>
   </main>
   <script src="app.js"></script>
 </body>

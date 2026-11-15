@@ -10,9 +10,9 @@ from alerts import arm, check_due, load as load_alerts
 from auth import login, public_user, register, reset_password, start_session, user_from_token
 from ebay import env, listings_for_name
 from models import Piece
-from prices import for_name
+from prices import for_name, for_style, split_prices
 from profile import set_sizes, size_for
-from image import piece_from_image
+from image import from_image
 
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 PAGES = {
@@ -119,6 +119,8 @@ class Handler(BaseHTTPRequestHandler):
             self.profile(body)
         elif path == "/recognize":
             self.recognize(body)
+        elif path == "/similar":
+            self.similar(body)
         elif path == "/alerts":
             self.create_alert(body)
         else:
@@ -174,13 +176,37 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "image"})
             return
         try:
-            piece = piece_from_image(image)
+            piece, listings, searched = from_image(image)
             size = size_for(user, piece.kind)
-            fresh, used = for_name(piece.name, size, piece.kind)
+            fresh, used = split_prices(listings, size, piece.kind == "shoes") if searched else ([], [])
+            identical = searched and bool(listings)
         except RuntimeError as error:
             self.send_json(502, {"error": str(error)})
             return
-        self.send_json(200, {"piece": {"name": piece.name, "kind": piece.kind, "label": piece.label},"size": size,"new": [asdict(item) for item in fresh],"used": [asdict(item) for item in used],})
+        style_name = (piece.broad or piece.name).split(",")[0].strip()
+        self.send_json(200, {"piece": {"name": piece.name, "kind": piece.kind, "label": piece.label},"size": size,"identical": identical,"similar_name": style_name,"heel_mm": piece.heel_mm,"new": [asdict(item) for item in fresh],"used": [asdict(item) for item in used],})
+
+    def similar(self, body: dict) -> None:
+        user = self.current_user()
+        if not user:
+            return
+        kind = body.get("kind")
+        name = str(body.get("name", "")).strip()
+        if kind not in ("clothes", "shoes") or not name:
+            self.send_json(400, {"error": "name, kind"})
+            return
+        label = str(body.get("label") or "")
+        try:
+            heel_mm = int(body.get("heel_mm") or 0)
+        except (TypeError, ValueError):
+            heel_mm = 0
+        size = size_for(user, kind)
+        try:
+            fresh, used = for_style(name, size, kind, label, heel_mm)
+        except RuntimeError as error:
+            self.send_json(502, {"error": str(error)})
+            return
+        self.send_json(200, {"name": name, "size": size, "new": [asdict(item) for item in fresh], "used": [asdict(item) for item in used]})
 
     def create_alert(self, body: dict) -> None:
         user = self.current_user()

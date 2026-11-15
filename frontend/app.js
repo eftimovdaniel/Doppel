@@ -46,6 +46,7 @@ async function request(path, body, method = "POST") {
 function readable(error) {
   if (error === "email is taken") return "That email is already registered.";
   if (error === "no price") return "Nothing in that size to watch yet.";
+  if (error === "no product") return "No identical product.";
   if (error === "name, email, password") return "Name, email, and password are required.";
   if (error === "image") return "Choose a photo first.";
   if (error === "no account") return "No account with that email.";
@@ -304,25 +305,27 @@ function initResults() {
   }
   const result = JSON.parse(raw);
   hit.hidden = false;
-  const name = result.piece?.name || "Unknown";
-  document.title = `Doppel — ${name}`;
-  document.querySelector("#piece-name").textContent = name;
-  const size = result.size || "—";
-  document.querySelector("#piece-meta").innerHTML =
-    `${escapeHtml(result.piece?.label || "")} &nbsp;·&nbsp; ${escapeHtml((result.piece?.kind || "").toUpperCase())} &nbsp;·&nbsp; SIZE <b>${escapeHtml(size)}</b>`;
-  document.querySelector("#crop").src = result.image;
-  const prices = [...(result.new || []), ...(result.used || [])].map((item) => item.price);
-  const low = prices.length ? Math.min(...prices) : null;
-  const lowText = low === null ? "NOTHING IN THIS SIZE" : money({ price: low, currency: result.new?.[0]?.currency || result.used?.[0]?.currency });
-  document.querySelector("#readout").innerHTML =
-    `&gt; NAME: ${escapeHtml(name)}<br>&gt; KIND: ${escapeHtml(result.piece?.kind || "")}<br>&gt; SIZE: ${escapeHtml(size)}<br>&gt; <em>CHEAPEST NOW: ${escapeHtml(lowText)}</em>`;
-  fillList("#new-list", result.new);
-  fillList("#used-list", result.used);
-  const band = document.querySelector(".marquee span");
-  if (band) {
-    const line = `${name.toUpperCase()} / SIZE ${size} / NEW AND USED / CHEAPEST FIRST / `;
-    band.textContent = `${line}${line}`;
-  }
+  paintResult(result);
+
+  document.querySelector("#similar")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    const status = document.querySelector("[data-status]");
+    button.disabled = true;
+    try {
+      const data = await request("/similar", {
+        name: result.similar_name || result.piece.name,
+        kind: result.piece.kind,
+        label: result.piece.label,
+        heel_mm: result.heel_mm || 0,
+      });
+      result.similar_items = [...(data.new || []), ...(data.used || [])];
+      sessionStorage.setItem("doppel-result", JSON.stringify(result));
+      paintResult(result);
+    } catch (error) {
+      button.disabled = false;
+      if (status) status.textContent = error.message;
+    }
+  });
 
   document.querySelector("#watch")?.addEventListener("click", async (event) => {
     const button = event.currentTarget;
@@ -343,13 +346,59 @@ function initResults() {
   });
 }
 
-function fillList(selector, items) {
+function paintResult(result) {
+  const name = result.piece?.name || "Unknown";
+  document.title = `Doppel — ${name}`;
+  document.querySelector("#piece-name").textContent = name;
+  const size = result.size || "—";
+  document.querySelector("#piece-meta").innerHTML =
+    `${escapeHtml(result.piece?.label || "")} &nbsp;·&nbsp; ${escapeHtml((result.piece?.kind || "").toUpperCase())} &nbsp;·&nbsp; SIZE <b>${escapeHtml(size)}</b>`;
+  document.querySelector("#crop").src = result.image;
+  const prices = [...(result.new || []), ...(result.used || [])].map((item) => item.price);
+  const low = prices.length ? Math.min(...prices) : null;
+  const lowText = low === null
+    ? (result.identical === false ? "NO IDENTICAL PRODUCT" : "NOTHING IN THIS SIZE")
+    : money({ price: low, currency: result.new?.[0]?.currency || result.used?.[0]?.currency });
+  document.querySelector("#readout").innerHTML =
+    `&gt; NAME: ${escapeHtml(name)}<br>&gt; KIND: ${escapeHtml(result.piece?.kind || "")}<br>&gt; SIZE: ${escapeHtml(size)}<br>&gt; <em>CHEAPEST NOW: ${escapeHtml(lowText)}</em>`;
+  fillList("#new-list", result.new, result.identical === false ? "No identical product." : "No new one in this size.");
+  fillList("#used-list", result.used, result.identical === false ? "No identical product." : "No used one in this size.");
+  const similarSection = document.querySelector("#similar-section");
+  const similarItems = result.similar_items || [];
+  if (similarSection) similarSection.hidden = similarItems.length === 0;
+  fillList("#similar-list", similarItems, "Nothing similar in this size.", true);
+  const watch = document.querySelector("#watch");
+  const similar = document.querySelector("#similar");
+  const status = document.querySelector("[data-status]");
+  const hasRows = (result.new || []).length + (result.used || []).length > 0;
+  if (watch) {
+    watch.hidden = !hasRows;
+    watch.disabled = false;
+  }
+  if (similar) {
+    similar.hidden = hasRows || similarItems.length > 0;
+    similar.disabled = false;
+  }
+  if (status && status.textContent !== "The alert is set at today's lowest price.") {
+    status.textContent = similarItems.length || hasRows ? "" : (result.identical === false
+      ? "No identical product. Show something similar?"
+      : "Nothing in this size.");
+  }
+  const band = document.querySelector(".marquee span");
+  if (band) {
+    const line = `${name.toUpperCase()} / SIZE ${size} / NEW AND USED / CHEAPEST FIRST / `;
+    band.textContent = `${line}${line}`;
+  }
+}
+
+function fillList(selector, items, emptyText, markCondition) {
   const list = document.querySelector(selector);
+  if (!list) return;
   list.replaceChildren();
   if (!items?.length) {
     const note = document.createElement("p");
     note.className = "size";
-    note.textContent = "Nothing in this size.";
+    note.textContent = emptyText || "Nothing in this size.";
     list.append(note);
     return;
   }
@@ -363,7 +412,8 @@ function fillList(selector, items) {
       card.rel = "noopener noreferrer";
     }
     const heading = item.title || item.size || "Size";
-    const detail = [item.title ? item.size : "", url ? "Open on eBay" : (item.where || "eBay")].filter(Boolean).join(" · ");
+    const state = markCondition ? (item.condition === "used" ? "Used" : "New") : "";
+    const detail = [state, item.title ? item.size : "", url ? "Open on eBay" : (item.where || "eBay")].filter(Boolean).join(" · ");
     card.innerHTML = `<div><div class="who">${escapeHtml(heading)}</div><div class="size">${escapeHtml(detail)}</div><div class="price">${escapeHtml(money(item))}</div></div>`;
     list.append(card);
   }

@@ -7,7 +7,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from models import Listing
-from name import title_has_model
+from name import title_has_model, title_matches_style
 
 TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
 SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search"
@@ -56,6 +56,9 @@ def access_token() -> str:
     _token_until = now + float(payload.get("expires_in", 7200)) - 60
     return _token
 
+class MissingItem(RuntimeError):
+    pass
+
 def ebay_json(url: str, method: str = "GET", payload: dict | None = None) -> dict:
     data = None if payload is None else json.dumps(payload).encode()
     headers = {
@@ -71,6 +74,8 @@ def ebay_json(url: str, method: str = "GET", payload: dict | None = None) -> dic
             raw = response.read().decode()
     except urllib.error.HTTPError as error:
         detail = error.read().decode(errors="replace")
+        if error.code == 404:
+            raise MissingItem(f"eBay 404: {detail}") from error
         raise RuntimeError(f"eBay {error.code}: {detail}") from error
     return json.loads(raw) if raw else {}
 
@@ -134,35 +139,57 @@ def listing_from_item(item: dict, condition: str) -> Listing | None:
         title=str(item.get("title") or "").strip(),
     )
 
-def listings_from_summary(summary: dict) -> list[Listing]:
+def listings_from_summary(summary: dict, name: str = "") -> list[Listing]:
     if (summary.get("price") or {}).get("value") is None or not summary.get("itemId"):
         return []
     condition = "new" if str(summary.get("conditionId", "")) == "1000" else "used"
     href = summary.get("itemHref") or f"{ITEM_URL}/{urllib.parse.quote(str(summary['itemId']), safe='')}"
-    item = ebay_json(str(href))
+    try:
+        item = ebay_json(str(href))
+    except MissingItem:
+        return []
+    fallback = str(summary.get("title") or "")
+
+    def keep(listing: Listing | None, source_title: str) -> Listing | None:
+        if listing is None:
+            return None
+        title = listing.title or source_title or fallback
+        if name and not title_has_model(name, title):
+            return None
+        return listing
+
     group_id = str((item.get("primaryItemGroup") or {}).get("itemGroupId") or "")
     if group_id:
-        grouped = ebay_json(f"{GROUP_URL}?item_group_id={urllib.parse.quote(group_id)}")
+        try:
+            grouped = ebay_json(f"{GROUP_URL}?item_group_id={urllib.parse.quote(group_id)}")
+        except MissingItem:
+            grouped = {}
         found = []
         seen = set()
         for child in grouped.get("items") or []:
-            listing = listing_from_item(child, condition)
+            listing = keep(listing_from_item(child, condition), str(child.get("title") or ""))
             if listing and listing.id not in seen:
                 seen.add(listing.id)
                 found.append(listing)
         if found:
             return found
-    one = listing_from_item(item, condition)
+    one = keep(listing_from_item(item, condition), str(item.get("title") or fallback))
     return [one] if one else []
 
-def titles_from_image(image: str) -> list[str]:
+def summaries_from_image(image: str) -> list[dict]:
     data = ebay_json(IMAGE_URL, "POST", {"image": plain_base64(image)})
-    titles = []
+    found = []
     for summary in data.get("itemSummaries") or []:
-        title = str(summary.get("title", "")).strip()
-        if title:
-            titles.append(title)
-    return titles
+        title = str(summary.get("title") or "").strip()
+        if not title or not summary.get("itemId"):
+            continue
+        item = dict(summary)
+        item["title"] = title
+        found.append(item)
+    return found
+
+def titles_from_image(image: str) -> list[str]:
+    return [item["title"] for item in summaries_from_image(image)]
 
 def listings_for_name(name: str) -> list[Listing]:
     query = urllib.parse.urlencode({"q": name, "limit": "20"})
@@ -171,5 +198,24 @@ def listings_for_name(name: str) -> list[Listing]:
     for summary in data.get("itemSummaries") or []:
         if not title_has_model(name, str(summary.get("title", ""))):
             continue
-        listings.extend(listings_from_summary(summary))
+        listings.extend(listings_from_summary(summary, name))
+    return listings
+
+def listings_for_style(name: str, label: str, heel_mm: int = 0) -> list[Listing]:
+    query_name = f"{name} {heel_mm}mm" if heel_mm else name
+    query = urllib.parse.urlencode({"q": query_name, "limit": "20"})
+    data = ebay_json(f"{SEARCH_URL}?{query}")
+    listings = []
+    seen = set()
+    for summary in data.get("itemSummaries") or []:
+        title = str(summary.get("title") or "")
+        if not title_matches_style(title, label, heel_mm, name):
+            continue
+        for listing in listings_from_summary(summary):
+            if not title_matches_style(listing.title or title, label, heel_mm, name):
+                continue
+            if listing.id in seen:
+                continue
+            seen.add(listing.id)
+            listings.append(listing)
     return listings

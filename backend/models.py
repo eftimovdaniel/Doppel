@@ -18,6 +18,8 @@ class Piece:
     name: str   #ime: Nike, Levis....
     kind: PieceKind
     label: str
+    broad: str = ""
+    heel_mm: int = 0
 
 @dataclass
 class Listing:

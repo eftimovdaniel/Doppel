@@ -3,8 +3,14 @@ import re
 
 from models import Piece, PieceKind
 
-STOP = {"size", "mens", "men", "menswear", "womens", "women", "womenswear","the", "a", "an", "with", "for", "and", "of", "in","new", "used", "nwt", "nwot", "preowned", 
+STOP = {"size", "mens", "men", "menswear", "womens", "women", "womenswear","the", "a", "an", "with", "for", "and", "of", "in", "on", "x","new", "used", "nwt", "nwot", "preowned", 
         "pre", "owned", "authentic", "original", "fit", "pair", "free", "shipping","eu", "us", "uk", "vintage", "rare", "excellent", "good", "condition", }
+
+# Линијата не е едно парче. FAMILY се бара во огласот. CUT често го нема, иако е истата патика.
+FAMILY = {"jordan", "nike", "adidas", "dunk", "force", "max"}
+CUT = {"air", "retro", "low", "mid", "high", "og", "se", "gs", "ps", "td", "sp", "wmns", "court", "classic", "premium", "sb"}
+LINE = FAMILY | CUT
+MATERIAL = {"leather", "patent", "suede", "canvas", "denim", "cotton", "wool", "silk", "nylon", "calf", "nappa", "hide", "hair", "shearling", "fur", "mesh", "satin", "velvet", "linen", "cowhide", "genuine", "puffer", "down"}
 
 COLORS = [ "dark blue", "light blue", "navy blue", "navy", "black", "white", "grey", "gray", "beige", "cream", "brown", "green", "red", "pink", "blue", "purple", "yellow", "orange",]
 
@@ -28,6 +34,7 @@ def normalize(title: str) -> str:
     text = title.lower()
     text = re.sub(r"levi'?s", "levi's", text)
     text = re.sub(r"[^a-z0-9' ]", " ", text)
+    text = re.sub(r"(?<![a-z])'|'(?![a-z])", "", text)
     return re.sub(r"\s+", " ", text).strip()
 
 def is_size_token(word: str) -> bool:
@@ -133,16 +140,50 @@ def cluster_titles(titles: list[str]) -> list[str]:
         return [text for text, _ in docs]
     return [docs[index][0] for index in sorted(best_ids)]
 
+def content_words(words: list[str]) -> list[str]:
+    skip = generic_types() | MATERIAL | color_words()
+    return [word for word in words if word not in skip]
+
+def identity_words(words: list[str]) -> list[str]:
+    return [word for word in content_words(words) if word not in LINE]
+
+def shared_words(docs: list[list[str]]) -> list[str]:
+    if not docs:
+        return []
+    need = math.ceil(len(docs) * 0.8)
+    counts: dict[str, int] = {}
+    for words in docs:
+        for word in set(words):
+            counts[word] = counts.get(word, 0) + 1
+    chosen = {word for word, count in counts.items() if count >= need}
+    if not chosen:
+        return []
+    best = max(docs, key=lambda words: sum(1 for word in words if word in chosen))
+    ordered = []
+    seen = set()
+    for word in best:
+        if word in chosen and word not in seen:
+            ordered.append(word)
+            seen.add(word)
+    rest = sorted((word for word in chosen if word not in seen), key=lambda word: (-counts[word], word))
+    return ordered + rest
+
 def model_words(name: str) -> list[str]:
+    if not is_specific(name):
+        return []
     head, _, color = name.partition(",")
-    head_words = tokens_of(head)
-    specific = [word for word in head_words if word not in generic_types()]
-    has_number = any(re.fullmatch(r"\d{3,4}", word) for word in specific)
-    if has_number or len(specific) >= 3:
-        return specific
-    if len(specific) >= 2:
-        return specific + [word for word in tokens_of(color) if word not in specific]
-    return []
+    words = tokens_of(head) + [word for word in tokens_of(color) if word not in tokens_of(head)]
+    return [word for word in words if word not in generic_types()]
+
+def is_specific(name: str) -> bool:
+    head, _, color = name.partition(",")
+    words = tokens_of(head) + [word for word in tokens_of(color) if word not in tokens_of(head)]
+    if any(re.fullmatch(r"\d{3,4}", word) for word in words):
+        return True
+    # Бренд од два збора не е едно парче. Треба модел или боја-верзија врз линијата.
+    if not identity_words(words):
+        return False
+    return len(content_words(words)) >= 3
 
 def title_has_model(name: str, title: str) -> bool:
     needed = model_words(name)
@@ -150,6 +191,67 @@ def title_has_model(name: str, title: str) -> bool:
         return True
     have = set(tokens_of(title))
     return all(word in have for word in needed)
+
+STYLE_WORDS = {
+    "PUMP": {"pump", "pumps", "court"},
+    "SANDAL": {"sandal", "sandals"},
+    "BOOT": {"boot", "boots"},
+    "LOAFER": {"loafer", "loafers"},
+    "SNEAKER": {"sneaker", "sneakers", "trainer", "trainers", "shoe", "shoes"},
+    "HEEL": {"heel", "heels"},
+    "BAG": {"bag", "bags", "handbag", "handbags"},
+    "JACKET": {"jacket"},
+    "COAT": {"coat"},
+    "JEANS": {"jeans", "jean", "denim"},
+}
+
+OTHER_STYLES = {
+    "PUMP": {"sandal", "sandals", "sling", "slingback", "mule", "mules", "slide", "slides", "boot", "boots", "sneaker", "sneakers", "peep"},
+    "SANDAL": {"pump", "pumps", "court", "boot", "boots", "sneaker", "sneakers", "mule", "mules", "sling", "slingback"},
+    "HEEL": {"sandal", "sandals", "pump", "pumps", "boot", "boots", "sneaker", "sneakers", "sling", "slingback", "mule", "mules", "peep"},
+    "BOOT": {"sandal", "sandals", "pump", "pumps", "sneaker", "sneakers"},
+    "SNEAKER": {"sandal", "sandals", "pump", "pumps", "boot", "boots", "heel", "heels"},
+}
+
+def heights_mm(text: str) -> list[int]:
+    found = []
+    for number in re.findall(r"(\d+(?:\.\d+)?)\s*mm\b", text.lower()):
+        found.append(round(float(number)))
+    for number in re.findall(r"(\d+(?:\.\d+)?)\s*cm\b", text.lower()):
+        found.append(round(float(number) * 10))
+    for number in re.findall(r"(\d+(?:\.\d+)?)\s*(?:inch|inches)\b", text.lower()):
+        found.append(round(float(number) * 25.4))
+    return [height for height in found if 30 <= height <= 180]
+
+def heel_from_titles(titles: list[str]) -> int:
+    counts: dict[int, int] = {}
+    for title in titles:
+        for height in set(heights_mm(title)):
+            counts[height] = counts.get(height, 0) + 1
+    if not counts:
+        return 0
+    best = max(counts, key=lambda height: counts[height])
+    if counts[best] < 2:
+        return 0
+    return best
+
+def close_heel(title: str, heel_mm: int) -> bool:
+    if not heel_mm:
+        return True
+    return any(abs(height - heel_mm) <= 10 for height in heights_mm(title))
+
+def title_matches_style(title: str, label: str, heel_mm: int, brand: str) -> bool:
+    words = set(tokens_of(title))
+    needed = [word for word in tokens_of(brand.split(",")[0]) if word not in generic_types() and word not in color_words()]
+    if needed and not all(word in words for word in needed):
+        return False
+    style = STYLE_WORDS.get(label, set())
+    if style and not (style & words):
+        return False
+    blocked = OTHER_STYLES.get(label, set()) - set(tokens_of(brand))
+    if blocked & words:
+        return False
+    return close_heel(title, heel_mm)
 
 def detect_color(titles: list[str]) -> str:
     docs = [normalize(title) for title in titles]
@@ -174,13 +276,13 @@ def name_from_titles(titles: list[str]) -> Piece:
                 if word == token:
                     hits.append((label, kind))
     kind: PieceKind = "shoes" if any(hit_kind == "shoes" for _, hit_kind in hits) else "clothes"
-    labels = [label for label, hit_kind in hits if hit_kind == kind]
+    labels = [label for label, hit_kind in hits if hit_kind == kind and label != "HEEL"]
+    if not labels:
+        labels = [label for label, hit_kind in hits if hit_kind == kind]
     label = most_common(labels) or ("SNEAKER" if kind == "shoes" else "PIECE")
     if not docs:
         return Piece(name="Unknown", kind=kind, label=label)
     phrase = agreed_phrase(docs)
-    if len(phrase.split(" ")) >= 3:
-        return Piece(name=title_case(phrase), kind=kind, label=label)
     colors = color_words()
     garment_tokens = {token for token, _, _ in GARMENTS}
     agreed_brand = [
@@ -192,7 +294,11 @@ def name_from_titles(titles: list[str]) -> Piece:
         for words in docs
         for word in words
         if word not in colors and not re.fullmatch(r"\d{3,4}", word) and word not in garment_tokens]
-    brand = title_case(" ".join(agreed_brand)) if len(agreed_brand) >= 2 else title_case(most_common(brand_tokens) or docs[0][0] or "Unknown")
+    brand_only = [word for word in agreed_brand if not re.fullmatch(r"\d{3,4}", word)]
+    if len(phrase.split(" ")) < 3 and len(brand_only) >= 2:
+        brand = title_case(" ".join(brand_only))
+    else:
+        brand = title_case(most_common(brand_tokens) or docs[0][0] or "Unknown")
     # 501 влегува само ако истиот број е во најмалку 60% од насловите во групата.
     number_counts = {}
     for words in docs:
@@ -208,15 +314,23 @@ def name_from_titles(titles: list[str]) -> Piece:
             type_count = count
     garment = "" if label == "PIECE" else label.lower()
     brand_words = brand.lower().split(" ")
+    broad_extra = garment if garment and garment not in brand_words else ""
+    broad_head = " ".join(part for part in (brand, broad_extra) if part)
+    color = detect_color(usable)
+    broad = f"{broad_head}, {color}" if color else broad_head
+    heel = heel_from_titles(usable)
+    shared = shared_words(docs)
+    if type_number and type_number not in shared:
+        shared.append(type_number)
+    shared_name = title_case(" ".join(shared))
+    if shared and is_specific(shared_name):
+        return Piece(name=shared_name, kind=kind, label=label, broad=broad, heel_mm=heel)
     if type_number and type_number not in brand_words:
         extra = type_number
     elif type_number:
         extra = ""
-    elif garment and garment not in brand_words:
-        extra = garment
     else:
-        extra = ""
+        extra = broad_extra
     head = " ".join(part for part in (brand, extra) if part)
-    color = detect_color(usable)
     name = f"{head}, {color}" if color else head
-    return Piece(name=name, kind=kind, label=label)
+    return Piece(name=name, kind=kind, label=label, broad=broad, heel_mm=heel)
