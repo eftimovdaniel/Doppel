@@ -411,10 +411,11 @@ function fillList(selector, items, emptyText, markCondition) {
       card.target = "_blank";
       card.rel = "noopener noreferrer";
     }
+    const photo = ebayImage(item.image);
     const heading = item.title || item.size || "Size";
     const state = markCondition ? (item.condition === "used" ? "Used" : "New") : "";
-    const detail = [state, item.title ? item.size : "", url ? "Open on eBay" : (item.where || "eBay")].filter(Boolean).join(" · ");
-    card.innerHTML = `<div><div class="who">${escapeHtml(heading)}</div><div class="size">${escapeHtml(detail)}</div><div class="price">${escapeHtml(money(item))}</div></div>`;
+    const detail = [state, item.size, url ? "Open on eBay" : (item.where || "eBay")].filter(Boolean).join(" · ");
+    card.innerHTML = `${photo ? `<img src="${escapeHtml(photo)}" alt="">` : ""}<div><div class="price">${escapeHtml(money(item))}</div><div class="size">${escapeHtml(detail)}</div><div class="who">${escapeHtml(heading)}</div></div>`;
     list.append(card);
   }
 }
@@ -426,6 +427,17 @@ function ebayUrl(item) {
   const number = parts.length >= 2 ? parts[1] : String(item.id || "");
   if (/^\d{6,}$/.test(number)) return `https://www.ebay.com/itm/${number}`;
   return "";
+}
+
+function ebayImage(value) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== "https:" || (host !== "ebayimg.com" && !host.endsWith(".ebayimg.com"))) return "";
+    return url.href;
+  } catch {
+    return "";
+  }
 }
 
 function ebayHref(value) {

@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -118,7 +119,20 @@ def listing_url(item: dict, item_id: str) -> str:
         return f"https://www.ebay.com/itm/{number}"
     return ""
 
-def listing_from_item(item: dict, condition: str) -> Listing | None:
+def listing_image(item: dict) -> str:
+    image = item.get("image") or {}
+    url = str(image.get("imageUrl") or "").strip()
+    if not url:
+        thumbs = item.get("thumbnailImages") or []
+        if thumbs:
+            url = str((thumbs[0] or {}).get("imageUrl") or "").strip()
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not (host == "ebayimg.com" or host.endswith(".ebayimg.com")):
+        return ""
+    return re.sub(r"/s-l\d+\.", "/s-l500.", url)
+
+def listing_from_item(item: dict, condition: str, image: str = "") -> Listing | None:
     paid = paid_price(item)
     size = read_size(item.get("localizedAspects") or []) or str(item.get("size") or "").strip()
     item_id = str(item.get("itemId", ""))
@@ -128,16 +142,7 @@ def listing_from_item(item: dict, condition: str) -> Listing | None:
     condition_id = str(item.get("conditionId") or "")
     if condition_id:
         condition = "new" if condition_id == "1000" else "used"
-    return Listing(
-        id=item_id,
-        price=value,
-        currency=currency,
-        condition=condition,
-        size=size,
-        where="eBay",
-        url=listing_url(item, item_id),
-        title=str(item.get("title") or "").strip(),
-    )
+    return Listing(id=item_id,price=value,currency=currency,condition=condition,size=size,where="eBay",url=listing_url(item, item_id),title=str(item.get("title") or "").strip(),image=listing_image(item) or image,)
 
 def listings_from_summary(summary: dict, name: str = "") -> list[Listing]:
     if (summary.get("price") or {}).get("value") is None or not summary.get("itemId"):
@@ -149,6 +154,7 @@ def listings_from_summary(summary: dict, name: str = "") -> list[Listing]:
     except MissingItem:
         return []
     fallback = str(summary.get("title") or "")
+    picture = listing_image(summary)
 
     def keep(listing: Listing | None, source_title: str) -> Listing | None:
         if listing is None:
@@ -167,13 +173,13 @@ def listings_from_summary(summary: dict, name: str = "") -> list[Listing]:
         found = []
         seen = set()
         for child in grouped.get("items") or []:
-            listing = keep(listing_from_item(child, condition), str(child.get("title") or ""))
+            listing = keep(listing_from_item(child, condition, picture), str(child.get("title") or ""))
             if listing and listing.id not in seen:
                 seen.add(listing.id)
                 found.append(listing)
         if found:
             return found
-    one = keep(listing_from_item(item, condition), str(item.get("title") or fallback))
+    one = keep(listing_from_item(item, condition, picture), str(item.get("title") or fallback))
     return [one] if one else []
 
 def summaries_from_image(image: str) -> list[dict]:
