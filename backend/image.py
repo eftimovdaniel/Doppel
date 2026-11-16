@@ -9,11 +9,12 @@ def from_image(image: str) -> tuple[Piece, list[Listing], list[Listing], bool]:
     piece.pattern = print_from_titles(titles[:15])
     if titles:
         near = name_from_titles(titles[:8])
-        if near.label in STYLE_WORDS:
+        specific = {"PUMP", "SANDAL", "BOOT", "LOAFER"}
+        if piece.label not in specific and near.label in specific:
             piece.kind = near.kind
             piece.label = near.label
-            if near.heel_mm:
-                piece.heel_mm = near.heel_mm
+        if not piece.heel_mm and near.heel_mm:
+            piece.heel_mm = near.heel_mm
     if is_specific(piece.name):
         return piece, listings_for_name(piece.name), [], True
     if piece.kind != "shoes" and piece.pattern:
