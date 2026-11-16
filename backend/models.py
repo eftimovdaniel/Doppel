@@ -20,6 +20,7 @@ class Piece:
     label: str
     broad: str = ""
     heel_mm: int = 0
+    pattern: str = ""
 
 @dataclass
 class Listing:

@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from models import Listing
-from name import title_has_model, title_matches_style
+from name import title_has_model, title_has_print, title_is_clothes, title_matches_style
 
 TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
 SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search"
@@ -208,17 +208,85 @@ def listings_for_name(name: str) -> list[Listing]:
     return listings
 
 def listings_for_style(name: str, label: str, heel_mm: int = 0) -> list[Listing]:
-    query_name = f"{name} {heel_mm}mm" if heel_mm else name
+    query_word = {
+        "PUMP": "pump",
+        "SANDAL": "sandal",
+        "BOOT": "boot",
+        "LOAFER": "loafer",
+        "SNEAKER": "sneaker",
+        "HEEL": "heel",
+        "BAG": "handbag",
+        "JACKET": "jacket",
+        "COAT": "coat",
+        "JEANS": "jeans",
+    }.get(label, "")
+    if not query_word:
+        return []
+    query_name = f"{query_word} {heel_mm}mm" if heel_mm else query_word
     query = urllib.parse.urlencode({"q": query_name, "limit": "20"})
     data = ebay_json(f"{SEARCH_URL}?{query}")
     listings = []
     seen = set()
     for summary in data.get("itemSummaries") or []:
         title = str(summary.get("title") or "")
-        if not title_matches_style(title, label, heel_mm, name):
+        if not title_matches_style(title, label, heel_mm, ""):
             continue
         for listing in listings_from_summary(summary):
-            if not title_matches_style(listing.title or title, label, heel_mm, name):
+            if not title_matches_style(listing.title or title, label, heel_mm, ""):
+                continue
+            if listing.id in seen:
+                continue
+            seen.add(listing.id)
+            listings.append(listing)
+    return listings
+
+def listings_for_print(pattern: str) -> list[Listing]:
+    query_word = {
+        "polka": "polka dot",
+        "dot": "polka dot",
+        "stripe": "striped",
+        "leopard": "leopard print",
+        "floral": "floral",
+        "plaid": "plaid",
+        "check": "checked",
+        "spotted": "spotted",
+    }.get(pattern, "")
+    if not query_word:
+        return []
+    query = urllib.parse.urlencode({"q": query_word, "limit": "20"})
+    data = ebay_json(f"{SEARCH_URL}?{query}")
+    listings = []
+    seen = set()
+    checked = 0
+    for summary in data.get("itemSummaries") or []:
+        title = str(summary.get("title") or "")
+        if not title_has_print(title, pattern) or not title_is_clothes(title):
+            continue
+        checked += 1
+        if checked > 8:
+            break
+        for listing in listings_from_summary(summary):
+            if not title_has_print(listing.title or title, pattern) or not title_is_clothes(listing.title or title):
+                continue
+            if listing.id in seen:
+                continue
+            seen.add(listing.id)
+            listings.append(listing)
+    return listings
+
+def listings_like_image(summaries: list[dict], label: str, heel_mm: int = 0) -> list[Listing]:
+    listings = []
+    seen = set()
+    checked = 0
+    for summary in summaries:
+        title = str(summary.get("title") or "")
+        if not title_matches_style(title, label, heel_mm, ""):
+            continue
+        checked += 1
+        if checked > 8:
+            break
+        for listing in listings_from_summary(summary):
+            if not title_matches_style(listing.title or title, label, heel_mm, ""):
                 continue
             if listing.id in seen:
                 continue
