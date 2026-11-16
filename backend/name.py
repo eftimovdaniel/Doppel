@@ -22,7 +22,8 @@ GARMENTS = [
     ("dress", "DRESS", "clothes"),("skirt", "SKIRT", "clothes"),
     ("knit", "KNIT", "clothes"),("sweater", "KNIT", "clothes"),
     ("bag", "BAG", "clothes"),("bags", "BAG", "clothes"),("handbag", "BAG", "clothes"),("handbags", "BAG", "clothes"),
-    ("sneakers", "SNEAKER", "shoes"),("sneaker", "SNEAKER", "shoes"),("shoes", "SNEAKER", "shoes"),("shoe", "SNEAKER", "shoes"),("trainers", "SNEAKER", "shoes"),("trainer", "SNEAKER", "shoes"),
+    ("sneakers", "SNEAKER", "shoes"),("sneaker", "SNEAKER", "shoes"),("trainers", "SNEAKER", "shoes"),("trainer", "SNEAKER", "shoes"),
+    ("shoes", "SHOE", "shoes"),("shoe", "SHOE", "shoes"),
     ("boots", "BOOT", "shoes"),("boot", "BOOT", "shoes"),
     ("loafers", "LOAFER", "shoes"),("loafer", "LOAFER", "shoes"),("dunk", "SNEAKER", "shoes"),
     ("pump", "PUMP", "shoes"),("pumps", "PUMP", "shoes"),
@@ -197,7 +198,7 @@ STYLE_WORDS = {
     "SANDAL": {"sandal", "sandals"},
     "BOOT": {"boot", "boots"},
     "LOAFER": {"loafer", "loafers"},
-    "SNEAKER": {"sneaker", "sneakers", "trainer", "trainers", "shoe", "shoes"},
+    "SNEAKER": {"sneaker", "sneakers", "trainer", "trainers"},
     "HEEL": {"heel", "heels"},
     "BAG": {"bag", "bags", "handbag", "handbags"},
     "JACKET": {"jacket"},
@@ -206,7 +207,7 @@ STYLE_WORDS = {
 }
 
 OTHER_STYLES = {
-    "PUMP": {"sandal", "sandals", "sling", "slingback", "mule", "mules", "slide", "slides", "boot", "boots", "sneaker", "sneakers", "peep"},
+    "PUMP": {"sandal", "sandals", "sling", "slingback", "mule", "mules", "slide", "slides", "boot", "boots", "sneaker", "sneakers", "trainer", "trainers", "peep"},
     "SANDAL": {"pump", "pumps", "court", "boot", "boots", "sneaker", "sneakers", "mule", "mules", "sling", "slingback"},
     "HEEL": {"sandal", "sandals", "pump", "pumps", "boot", "boots", "sneaker", "sneakers", "sling", "slingback", "mule", "mules", "peep"},
     "BOOT": {"sandal", "sandals", "pump", "pumps", "sneaker", "sneakers"},
@@ -233,6 +234,9 @@ def heel_from_titles(titles: list[str]) -> int:
     best = max(counts, key=lambda height: counts[height])
     if counts[best] < 2:
         return 0
+    for height, count in counts.items():
+        if height != best and count >= 2 and abs(height - best) > 10:
+            return 0
     return best
 
 def close_heel(title: str, heel_mm: int) -> bool:
@@ -336,7 +340,9 @@ def name_from_titles(titles: list[str]) -> Piece:
     specific_shoes = {"PUMP", "SANDAL", "BOOT", "LOAFER"}
     labels = [label for label, hit_kind in hits if hit_kind == kind and label in specific_shoes]
     if not labels:
-        labels = [label for label, hit_kind in hits if hit_kind == kind and label != "HEEL"]
+        labels = [label for label, hit_kind in hits if hit_kind == kind and label not in {"HEEL", "SHOE"}]
+    if not labels:
+        labels = [label for label, hit_kind in hits if hit_kind == kind and label != "SHOE"]
     if not labels:
         labels = [label for label, hit_kind in hits if hit_kind == kind]
     label = most_common(labels) or ("SNEAKER" if kind == "shoes" else "PIECE")
@@ -378,7 +384,7 @@ def name_from_titles(titles: list[str]) -> Piece:
     broad_head = " ".join(part for part in (brand, broad_extra) if part)
     color = detect_color(usable)
     broad = f"{broad_head}, {color}" if color else broad_head
-    heel = heel_from_titles(usable)
+    heel = heel_from_titles(titles)
     shared = shared_words(docs)
     if type_number and type_number not in shared:
         shared.append(type_number)
