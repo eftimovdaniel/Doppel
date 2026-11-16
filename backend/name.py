@@ -240,6 +240,63 @@ def close_heel(title: str, heel_mm: int) -> bool:
         return True
     return any(abs(height - heel_mm) <= 10 for height in heights_mm(title))
 
+PRINTS = [
+    ("polka dot", "polka"),
+    ("polka dots", "polka"),
+    ("leopard", "leopard"),
+    ("floral", "floral"),
+    ("plaid", "plaid"),
+    ("gingham", "check"),
+    ("checked", "check"),
+    ("striped", "stripe"),
+    ("stripes", "stripe"),
+    ("stripe", "stripe"),
+    ("spotted", "spotted"),
+    ("dots", "dot"),
+    ("dot", "dot"),
+]
+
+PRINT_NEEDLES = {
+    "polka": ["polka"],
+    "leopard": ["leopard"],
+    "floral": ["floral"],
+    "plaid": ["plaid"],
+    "check": ["check", "checked", "gingham"],
+    "stripe": ["stripe", "stripes", "striped"],
+    "spotted": ["spotted"],
+    "dot": ["dot", "dots", "polka"],
+}
+
+def print_from_titles(titles: list[str]) -> str:
+    counts: dict[str, int] = {}
+    for title in titles:
+        text = normalize(title)
+        seen = set()
+        for phrase, key in PRINTS:
+            if re.search(rf"\b{re.escape(phrase)}\b", text):
+                seen.add(key)
+        if "polka" in seen:
+            seen.discard("dot")
+        for key in seen:
+            counts[key] = counts.get(key, 0) + 1
+    if not counts:
+        return ""
+    best = max(counts, key=lambda key: (counts[key], len(key)))
+    if counts[best] < 2:
+        return ""
+    return best
+
+def title_has_print(title: str, pattern: str) -> bool:
+    if not pattern:
+        return True
+    text = normalize(title)
+    return any(re.search(rf"\b{re.escape(word)}\b", text) for word in PRINT_NEEDLES.get(pattern, [pattern]))
+
+def title_is_clothes(title: str) -> bool:
+    hints = {token for token, _label, kind in GARMENTS if kind == "clothes"}
+    hints.update({"blouse", "top", "suit", "gown", "romper", "jumpsuit", "shorts", "cardigan", "sleeve", "outfit"})
+    return bool(set(tokens_of(title)) & hints)
+
 def title_matches_style(title: str, label: str, heel_mm: int, brand: str) -> bool:
     words = set(tokens_of(title))
     needed = [word for word in tokens_of(brand.split(",")[0]) if word not in generic_types() and word not in color_words()]
@@ -276,7 +333,10 @@ def name_from_titles(titles: list[str]) -> Piece:
                 if word == token:
                     hits.append((label, kind))
     kind: PieceKind = "shoes" if any(hit_kind == "shoes" for _, hit_kind in hits) else "clothes"
-    labels = [label for label, hit_kind in hits if hit_kind == kind and label != "HEEL"]
+    specific_shoes = {"PUMP", "SANDAL", "BOOT", "LOAFER"}
+    labels = [label for label, hit_kind in hits if hit_kind == kind and label in specific_shoes]
+    if not labels:
+        labels = [label for label, hit_kind in hits if hit_kind == kind and label != "HEEL"]
     if not labels:
         labels = [label for label, hit_kind in hits if hit_kind == kind]
     label = most_common(labels) or ("SNEAKER" if kind == "shoes" else "PIECE")

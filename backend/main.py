@@ -10,7 +10,7 @@ from alerts import arm, check_due, load as load_alerts
 from auth import login, public_user, register, reset_password, start_session, user_from_token
 from ebay import env, listings_for_name
 from models import Piece
-from prices import for_name, for_style, split_prices
+from prices import for_name, for_print, for_style, split_prices
 from profile import set_sizes, size_for
 from image import from_image
 
@@ -176,15 +176,17 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "image"})
             return
         try:
-            piece, listings, searched = from_image(image)
+            piece, listings, similar, searched = from_image(image)
             size = size_for(user, piece.kind)
-            fresh, used = split_prices(listings, size, piece.kind == "shoes") if searched else ([], [])
+            shoes = piece.kind == "shoes"
+            fresh, used = split_prices(listings, size, shoes) if searched else ([], [])
+            sim_fresh, sim_used = split_prices(similar, size, shoes) if similar else ([], [])
             identical = searched and bool(listings)
         except RuntimeError as error:
             self.send_json(502, {"error": str(error)})
             return
         style_name = (piece.broad or piece.name).split(",")[0].strip()
-        self.send_json(200, {"piece": {"name": piece.name, "kind": piece.kind, "label": piece.label},"size": size,"identical": identical,"similar_name": style_name,"heel_mm": piece.heel_mm,"new": [asdict(item) for item in fresh],"used": [asdict(item) for item in used],})
+        self.send_json(200, {"piece": {"name": piece.name, "kind": piece.kind, "label": piece.label},"size": size,"identical": identical,"similar_name": style_name,"heel_mm": piece.heel_mm,"pattern": piece.pattern,"new": [asdict(item) for item in fresh],"used": [asdict(item) for item in used],"similar_items": [asdict(item) for item in sim_fresh + sim_used],})
 
     def similar(self, body: dict) -> None:
         user = self.current_user()
@@ -195,6 +197,7 @@ class Handler(BaseHTTPRequestHandler):
         if kind not in ("clothes", "shoes") or not name:
             self.send_json(400, {"error": "name, kind"})
             return
+        pattern = str(body.get("pattern") or "")
         label = str(body.get("label") or "")
         try:
             heel_mm = int(body.get("heel_mm") or 0)
@@ -202,7 +205,7 @@ class Handler(BaseHTTPRequestHandler):
             heel_mm = 0
         size = size_for(user, kind)
         try:
-            fresh, used = for_style(name, size, kind, label, heel_mm)
+            fresh, used = for_print(pattern, size, kind) if pattern and kind != "shoes" else for_style(name, size, kind, label, heel_mm)
         except RuntimeError as error:
             self.send_json(502, {"error": str(error)})
             return

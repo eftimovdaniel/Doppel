@@ -317,6 +317,7 @@ function initResults() {
         kind: result.piece.kind,
         label: result.piece.label,
         heel_mm: result.heel_mm || 0,
+        pattern: result.pattern || "",
       });
       result.similar_items = [...(data.new || []), ...(data.used || [])];
       sessionStorage.setItem("doppel-result", JSON.stringify(result));

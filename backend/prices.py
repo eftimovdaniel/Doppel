@@ -1,6 +1,6 @@
 import re
 
-from ebay import listings_for_name, listings_for_style
+from ebay import listings_for_name, listings_for_print, listings_for_style
 from models import Listing
 
 # Nike men's and women's charts. eBay US writes the US number.
@@ -66,6 +66,11 @@ def for_style(name: str, size: str, kind: str, label: str, heel_mm: int = 0) -> 
     if not name.strip() or not size.strip():
         return [], []
     return split_prices(listings_for_style(name, label, heel_mm), size, kind == "shoes")
+
+def for_print(pattern: str, size: str, kind: str) -> tuple[list[Listing], list[Listing]]:
+    if not pattern.strip() or not size.strip():
+        return [], []
+    return split_prices(listings_for_print(pattern), size, kind == "shoes")
 
 def cheapest(fresh: list[Listing], used: list[Listing]) -> float | None:
     prices = [item.price for item in (*fresh, *used)]
