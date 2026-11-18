@@ -209,7 +209,95 @@ def aspect_fits(item: dict, label: str) -> bool:
         return True
     return mapped == label
 
-def listings_from_summary(summary: dict, name: str = "", label: str = "") -> list[Listing]:
+def aspect_value(item: dict, name: str) -> str:
+    for aspect in item.get("localizedAspects") or []:
+        if str(aspect.get("name", "")).strip().lower() == name:
+            return str(aspect.get("value") or "")
+    return ""
+
+def material_family(text: str) -> str:
+    words = set(tokens_of(text))
+    if words & {"satin", "silk"}:
+        return "satin"
+    if "patent" in words:
+        return "patent"
+    if words & {"glitter", "sequin", "sequins"}:
+        return "glitter"
+    if "suede" in words:
+        return "suede"
+    if words & {"lace", "fabric", "textile", "mesh", "cloth"}:
+        return "fabric"
+    if words & {"leather", "calf", "nappa"}:
+        return "leather"
+    return ""
+
+def toe_family(text: str) -> str:
+    words = set(tokens_of(text))
+    if "peep" in words:
+        return "peep"
+    if words & {"pointed", "pointy"}:
+        return "pointed"
+    for name in ("almond", "square", "round", "open"):
+        if name in words:
+            return name
+    return ""
+
+def heel_family(text: str) -> str:
+    words = set(tokens_of(text))
+    for name in ("stiletto", "block", "kitten", "wedge", "cone", "platform"):
+        if name in words:
+            return name
+    return ""
+
+def stated_details(item: dict, title: str) -> dict:
+    details = {
+        "material": material_family(aspect_value(item, "upper material")),
+        "toe": toe_family(aspect_value(item, "toe shape")),
+        "heel": heel_family(aspect_value(item, "heel style")),
+    }
+    from_title = {
+        "material": material_family(title),
+        "toe": toe_family(title),
+        "heel": heel_family(title),
+    }
+    for key, value in from_title.items():
+        if not details[key] and value:
+            details[key] = value
+    if from_title["material"] in {"glitter", "satin", "patent", "suede"}:
+        details["material"] = from_title["material"]
+    return details
+
+def majority_detail(rows: list[dict]) -> dict:
+    profile = {"material": "", "toe": "", "heel": ""}
+    for key in profile:
+        counts: dict[str, int] = {}
+        for row in rows:
+            value = row.get(key) or ""
+            if value:
+                counts[value] = counts.get(value, 0) + 1
+        if not counts:
+            continue
+        best = max(counts, key=lambda value: counts[value])
+        if counts[best] >= 2:
+            profile[key] = best
+    return profile
+
+def contradicts(profile: dict, details: dict) -> bool:
+    for key, wanted in profile.items():
+        stated = details.get(key) or ""
+        if wanted and stated and stated != wanted:
+            return True
+    return False
+
+def odd_cut(title: str) -> str:
+    text = title.lower().replace("'", "").replace("’", "")
+    if "dorsay" in text:
+        return "dorsay"
+    if "high-low" in text or "high low" in text:
+        return "highlow"
+    return ""
+
+def listings_from_summary(summary: dict, name: str = "", label: str = "", sink: list | None = None) -> list[Listing]:
     if (summary.get("price") or {}).get("value") is None or not summary.get("itemId"):
         return []
     condition = "new" if str(summary.get("conditionId", "")) == "1000" else "used"
@@ -220,6 +308,8 @@ def listings_from_summary(summary: dict, name: str = "", label: str = "") -> lis
         return []
     if label and not aspect_fits(item, label):
         return []
+    if sink is not None:
+        sink.append(item)
     fallback = str(summary.get("title") or "")
     picture = listing_image(summary)
 
@@ -344,7 +434,7 @@ def listings_for_print(pattern: str) -> list[Listing]:
     return listings
 
 def listings_like_image(summaries: list[dict], label: str, heel_mm: int = 0) -> list[Listing]:
-    listings = []
+    picked = []
     seen = set()
     checked = 0
     for summary in summaries:
@@ -356,13 +446,29 @@ def listings_like_image(summaries: list[dict], label: str, heel_mm: int = 0) -> 
         checked += 1
         if checked > 8:
             break
-        for listing in listings_from_summary(summary, label=label):
+        found: list[dict] = []
+        for listing in listings_from_summary(summary, label=label, sink=found):
             if not title_matches_style(listing.title or title, label, heel_mm, ""):
                 continue
             if listing.id in seen:
                 continue
             seen.add(listing.id)
-            listings.append(listing)
+            item = found[0] if found else {}
+            picked.append((listing, stated_details(item, listing.title or title)))
+    profile = majority_detail([details for _, details in picked]) if label == "PUMP" else {"material": "", "toe": "", "heel": ""}
+    cuts: dict[str, int] = {}
+    for listing, _details in picked:
+        cut = odd_cut(listing.title)
+        if cut:
+            cuts[cut] = cuts.get(cut, 0) + 1
+    listings = []
+    for listing, details in picked:
+        if contradicts(profile, details):
+            continue
+        cut = odd_cut(listing.title)
+        if cut and cuts.get(cut, 0) < 2:
+            continue
+        listings.append(listing)
     if label == "PUMP":
         listings.sort(key=lambda item: 0 if {"lace", "pointed", "pointy"} & set(tokens_of(item.title)) else 1)
     return listings
