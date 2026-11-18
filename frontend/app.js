@@ -322,6 +322,7 @@ function initResults() {
       result.similar_items = [...(data.new || []), ...(data.used || [])];
       sessionStorage.setItem("doppel-result", JSON.stringify(result));
       paintResult(result);
+      if (!result.similar_items.length && status) status.textContent = "Nothing similar in this size.";
     } catch (error) {
       button.disabled = false;
       if (status) status.textContent = error.message;
@@ -377,7 +378,7 @@ function paintResult(result) {
     watch.disabled = false;
   }
   if (similar) {
-    similar.hidden = hasRows || similarItems.length > 0;
+    similar.hidden = similarItems.length > 0 || (hasRows && result.identical !== false);
     similar.disabled = false;
   }
   if (status && status.textContent !== "The alert is set at today's lowest price.") {
