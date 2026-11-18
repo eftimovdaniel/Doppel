@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-PieceKind = Literal["clothes", "shoes"] #golemina na obleka i obuvki
+PieceKind = Literal["clothes", "shoes", "other"] #golemina na obleka i obuvki
 Condition = Literal["new", "used"]  # dali e novo ili ne
 
 @dataclass

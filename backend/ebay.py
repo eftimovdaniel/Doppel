@@ -195,6 +195,47 @@ def photo_label(summaries: list[dict]) -> str:
         return ""
     return best
 
+BROAD_CATEGORIES = {"Clothing, Shoes & Accessories", "Women","Men","Kids","Baby","Unisex","Everything Else", }
+
+def category_name(summary:dict) -> str:
+    for category in summary.get("categories") or []:
+        name = str(category.get("categoryName") or "").strip()
+        if name and name not in BROAD_CATEGORIES:
+            return name
+    return ""
+
+def photo_category(summaries: list[dict]) -> str:
+    counts: dict[str, int] = {}
+    for summary in summaries:
+        name = category_name(summary)
+        if not name:
+            continue
+        counts[name] = counts.get(name,0)+1
+    if not counts:
+        return ""
+    best = max(counts, key=lambda name: counts[name])
+    total = sum(counts.values())
+    if counts[best] < 2 or counts[best]*5 < total*3:
+        return ""
+    return best
+
+def listings_for_category(summaries: list[dict], category: str) -> list[Listing]:
+    listings = []
+    seen = set()
+    checked = 0
+    for summary in summaries:
+        if category_name(summary) != category:
+            continue
+        checked += 1
+        if checked > 8:
+            break
+        for listing in listings_from_summary(summary):
+            if listing.id in seen:
+                continue
+            seen.add(listing.id)
+            listings.append(listing)
+    return listings
+
 def aspect_style(item: dict) -> str:
     for aspect in item.get("localizedAspects") or []:
         if str(aspect.get("name", "")).strip().lower() == "style":

@@ -57,13 +57,26 @@ def split_prices(listings: list[Listing], size: str, shoes: bool = False) -> tup
     used = sorted((item for item in matched if item.condition == "used"), key=lambda item: item.price)
     return fresh, used
 
+def split_open(listings: list[Listing]) -> tuple[list[Listing], list[Listing]]:
+    fresh = sorted((item for item in listings if item.condition == "new"), key = lambda item: item.price)
+    used = sorted((item for item in listings if item.condition == "used"), key = lambda item: item.price)
+    return fresh, used
+
 def for_name(name: str, size: str, kind: str = "clothes") -> tuple[list[Listing], list[Listing]]:
+    if kind == "other":
+        if not name.strip() or name == "Unknown":
+            return [], []
+        return split_open(listings_for_name(name))
     if not name.strip() or name == "Unknown" or not size.strip():
         return [], []
     return split_prices(listings_for_name(name), size, kind == "shoes")
 
 def for_style(name: str, size: str, kind: str, label: str, heel_mm: int = 0) -> tuple[list[Listing], list[Listing]]:
-    if not name.strip() or not size.strip():
+    if not name.strip():
+        return [], []
+    if kind == "other" or label == "BAG":
+        return split_open(listings_for_style(name, label, heel_mm))
+    if not size.strip():
         return [], []
     return split_prices(listings_for_style(name, label, heel_mm), size, kind == "shoes")
 

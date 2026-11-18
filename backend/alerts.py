@@ -1,7 +1,7 @@
 import time
 import uuid
 from models import Alert, Listing, Piece
-from prices import cheapest, split_prices
+from prices import cheapest, split_open, split_prices
 from db import alert_from_row, alert_values, db
 
 DAY = 24 * 60 * 60
@@ -59,7 +59,11 @@ def check_due(fetch) -> list[Alert]:
         if now - alert.last_checked_at < DAY:
             continue
         try:
-            fresh, used = split_prices(fetch(alert.model_name), alert.size, alert.kind == "shoes")
+            found = fetch(alert.model_name)
+            if alert.kind == "other":
+                fresh, used = split_open(found)
+            else:
+                fresh, used = split_prices(found, alert.size, alert.kind == "shoes")
         except Exception as error:
             print(error)
             continue

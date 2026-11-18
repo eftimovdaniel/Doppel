@@ -10,7 +10,7 @@ from alerts import arm, check_due, load as load_alerts
 from auth import login, public_user, register, reset_password, start_session, user_from_token
 from ebay import env, listings_for_name
 from models import Piece
-from prices import for_name, for_print, for_style, split_prices
+from prices import for_name, for_print, for_style, split_open, split_prices
 from profile import set_sizes, size_for
 from image import from_image
 
@@ -179,8 +179,12 @@ class Handler(BaseHTTPRequestHandler):
             piece, listings, similar, searched = from_image(image)
             size = size_for(user, piece.kind)
             shoes = piece.kind == "shoes"
-            fresh, used = split_prices(listings, size, shoes) if searched else ([], [])
-            sim_fresh, sim_used = split_prices(similar, size, shoes) if similar else ([], [])
+            if piece.kind == "other" or piece.label == "BAG":
+                fresh, used = split_open(listings) if searched else ([], [])
+                sim_fresh, sim_used = split_open(similar) if similar else ([], [])
+            else:
+                fresh, used = split_prices(listings, size, shoes) if searched else ([], [])
+                sim_fresh, sim_used = split_prices(similar, size, shoes) if similar else ([], [])
             identical = searched and bool(listings)
         except RuntimeError as error:
             self.send_json(502, {"error": str(error)})
@@ -194,7 +198,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         kind = body.get("kind")
         name = str(body.get("name", "")).strip()
-        if kind not in ("clothes", "shoes") or not name:
+        if kind not in ("clothes", "shoes", "other") or not name:
             self.send_json(400, {"error": "name, kind"})
             return
         pattern = str(body.get("pattern") or "")
@@ -205,7 +209,10 @@ class Handler(BaseHTTPRequestHandler):
             heel_mm = 0
         size = size_for(user, kind)
         try:
-            fresh, used = for_print(pattern, size, kind) if pattern and kind != "shoes" else for_style(name, size, kind, label, heel_mm)
+            if kind == "other":
+                fresh, used = for_name(name, size, kind)
+            else:
+                fresh, used = for_print(pattern, size, kind) if pattern and kind != "shoes" else for_style(name, size, kind, label, heel_mm)
         except RuntimeError as error:
             self.send_json(502, {"error": str(error)})
             return
@@ -217,7 +224,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         kind = body.get("kind")
         name = str(body.get("name", "")).strip()
-        if kind not in ("clothes", "shoes") or not name:
+        if kind not in ("clothes", "shoes", "other") or not name:
             self.send_json(400, {"error": "name, kind"})
             return
         piece = Piece(name=name, kind=kind, label=str(body.get("label", "")).strip())

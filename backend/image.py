@@ -1,4 +1,4 @@
-from ebay import listings_for_name, listings_for_print, listings_like_image, photo_label, summaries_from_image
+from ebay import listings_for_category, listings_for_name, listings_for_print, listings_like_image, photo_category, photo_label, summaries_from_image
 from models import Listing, Piece
 from name import STYLE_WORDS, is_specific, name_from_titles, print_from_titles, style_name
 
@@ -21,16 +21,24 @@ def from_image(image: str) -> tuple[Piece, list[Listing], list[Listing], bool]:
             piece.label = near.label
         if not piece.heel_mm and near.heel_mm:
             piece.heel_mm = near.heel_mm
-    if is_specific(piece.name):
+    if is_specific(piece.name) and piece.label != "BAG":
         return piece, listings_for_name(piece.name), [], True
     if piece.kind != "shoes" and piece.pattern:
         return piece, [], listings_for_print(piece.pattern), False
     if piece.label not in STYLE_WORDS:
-        return piece, [], [], False
+        category = photo_category(summaries)
+        if not category:
+            return piece, [], [], False
+        found = listings_for_category(summaries, category)
+        piece.kind = "other"
+        piece.label = category
+        agreed = name_from_titles([item.title for item in found]) if found else None
+        piece.name = agreed.name if agreed and is_specific(agreed.name) else category
+        return piece, found, [], True
     similar = listings_like_image(summaries, piece.label, piece.heel_mm)
     if similar:
         agreed = name_from_titles([item.title for item in similar])
-        if is_specific(agreed.name):
+        if is_specific(agreed.name) and piece.label != "BAG":
             piece.name = agreed.name
             if agreed.label in STYLE_WORDS:
                 piece.label = agreed.label
