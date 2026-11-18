@@ -1,6 +1,18 @@
-from ebay import listings_for_category, listings_for_name, listings_for_print, listings_like_image, photo_category, photo_label, summaries_from_image
+from ebay import listings_for_category, listings_for_name, listings_for_print, listings_for_style, listings_like_image, photo_category, photo_label, summaries_from_image
 from models import Listing, Piece
-from name import STYLE_WORDS, is_specific, name_from_titles, print_from_titles, style_name
+from name import STYLE_WORDS, is_specific, name_from_titles, print_from_titles, style_name, title_has_model
+
+def without_same(items: list[Listing], same: list[Listing], name: str) -> list[Listing]:
+    skip = {item.id for item in same}
+    kept = []
+    for item in items:
+        if item.id in skip:
+            continue
+        if name and is_specific(name) and title_has_model(name, item.title):
+            continue
+        skip.add(item.id)
+        kept.append(item)
+    return kept
 
 def from_image(image: str) -> tuple[Piece, list[Listing], list[Listing], bool]:
     summaries = summaries_from_image(image)
@@ -22,7 +34,9 @@ def from_image(image: str) -> tuple[Piece, list[Listing], list[Listing], bool]:
         if not piece.heel_mm and near.heel_mm:
             piece.heel_mm = near.heel_mm
     if is_specific(piece.name) and piece.label != "BAG":
-        return piece, listings_for_name(piece.name), [], True
+        same = listings_for_name(piece.name)
+        alike = listings_for_style(piece.name, piece.label, piece.heel_mm) if piece.label in STYLE_WORDS else []
+        return piece, same, without_same(alike, same, piece.name), True
     if piece.kind != "shoes" and piece.pattern:
         return piece, [], listings_for_print(piece.pattern), False
     if piece.label not in STYLE_WORDS:
@@ -33,8 +47,12 @@ def from_image(image: str) -> tuple[Piece, list[Listing], list[Listing], bool]:
         piece.kind = "other"
         piece.label = category
         agreed = name_from_titles([item.title for item in found]) if found else None
-        piece.name = agreed.name if agreed and is_specific(agreed.name) else category
-        return piece, found, [], True
+        if agreed and is_specific(agreed.name):
+            piece.name = agreed.name
+            same = [item for item in found if title_has_model(piece.name, item.title)] or found
+            return piece, same, without_same(found, same, piece.name), True
+        piece.name = category
+        return piece, [], found, False
     similar = listings_like_image(summaries, piece.label, piece.heel_mm)
     if similar:
         agreed = name_from_titles([item.title for item in similar])
@@ -42,5 +60,9 @@ def from_image(image: str) -> tuple[Piece, list[Listing], list[Listing], bool]:
             piece.name = agreed.name
             if agreed.label in STYLE_WORDS:
                 piece.label = agreed.label
-            return piece, similar, [], True
+            same = [item for item in similar if title_has_model(piece.name, item.title)]
+            if not same:
+                same = listings_for_name(piece.name)
+            alike = listings_for_style(piece.name, piece.label, piece.heel_mm)
+            return piece, same, without_same(similar + alike, same, piece.name), True
     return piece, [], similar, False
