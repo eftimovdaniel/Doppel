@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from models import Listing
-from name import title_has_model, title_has_print, title_is_clothes, title_matches_style
+from name import title_has_model, title_has_print, title_is_clothes, title_matches_style, tokens_of
 
 TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
 SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search"
@@ -144,7 +144,72 @@ def listing_from_item(item: dict, condition: str, image: str = "") -> Listing | 
         condition = "new" if condition_id == "1000" else "used"
     return Listing(id=item_id,price=value,currency=currency,condition=condition,size=size,where="eBay",url=listing_url(item, item_id),title=str(item.get("title") or "").strip(),image=listing_image(item) or image,)
 
-def listings_from_summary(summary: dict, name: str = "") -> list[Listing]:
+CATEGORY_LABEL = {
+    "Heels": "PUMP",
+    "Sandals": "SANDAL",
+    "Athletic Shoes": "SNEAKER",
+    "Boots": "BOOT",
+    "Coats, Jackets & Vests": "JACKET",
+}
+
+ASPECT_LABEL = {
+    "pump": "PUMP",
+    "pumps": "PUMP",
+    "slingback": "SLING",
+    "sling back": "SLING",
+    "sandal": "SANDAL",
+    "sandals": "SANDAL",
+    "sneaker": "SNEAKER",
+    "sneakers": "SNEAKER",
+    "trainer": "SNEAKER",
+    "boot": "BOOT",
+    "boots": "BOOT",
+    "loafer": "LOAFER",
+    "mule": "MULE",
+    "mules": "MULE",
+    "peep toe": "PEEP",
+}
+
+def summary_label(summary: dict) -> str:
+    found = []
+    for category in summary.get("categories") or []:
+        label = CATEGORY_LABEL.get(str(category.get("categoryName") or ""))
+        if label and label not in found:
+            found.append(label)
+    if len(found) == 1:
+        return found[0]
+    return ""
+
+def photo_label(summaries: list[dict]) -> str:
+    counts: dict[str, int] = {}
+    for summary in summaries:
+        label = summary_label(summary)
+        if not label:
+            continue
+        counts[label] = counts.get(label, 0) + 1
+    if not counts:
+        return ""
+    best = max(counts, key=lambda label: counts[label])
+    total = sum(counts.values())
+    if counts[best] < 2 or counts[best] * 5 < total * 3:
+        return ""
+    return best
+
+def aspect_style(item: dict) -> str:
+    for aspect in item.get("localizedAspects") or []:
+        if str(aspect.get("name", "")).strip().lower() == "style":
+            return str(aspect.get("value", "")).strip().lower()
+    return ""
+
+def aspect_fits(item: dict, label: str) -> bool:
+    if not label:
+        return True
+    mapped = ASPECT_LABEL.get(aspect_style(item), "")
+    if not mapped:
+        return True
+    return mapped == label
+
+def listings_from_summary(summary: dict, name: str = "", label: str = "") -> list[Listing]:
     if (summary.get("price") or {}).get("value") is None or not summary.get("itemId"):
         return []
     condition = "new" if str(summary.get("conditionId", "")) == "1000" else "used"
@@ -152,6 +217,8 @@ def listings_from_summary(summary: dict, name: str = "") -> list[Listing]:
     try:
         item = ebay_json(str(href))
     except MissingItem:
+        return []
+    if label and not aspect_fits(item, label):
         return []
     fallback = str(summary.get("title") or "")
     picture = listing_image(summary)
@@ -173,6 +240,8 @@ def listings_from_summary(summary: dict, name: str = "") -> list[Listing]:
         found = []
         seen = set()
         for child in grouped.get("items") or []:
+            if label and not aspect_fits(child, label):
+                continue
             listing = keep(listing_from_item(child, condition, picture), str(child.get("title") or ""))
             if listing and listing.id not in seen:
                 seen.add(listing.id)
@@ -231,7 +300,7 @@ def listings_for_style(name: str, label: str, heel_mm: int = 0) -> list[Listing]
         title = str(summary.get("title") or "")
         if not title_matches_style(title, label, heel_mm, ""):
             continue
-        for listing in listings_from_summary(summary):
+        for listing in listings_from_summary(summary, label=label):
             if not title_matches_style(listing.title or title, label, heel_mm, ""):
                 continue
             if listing.id in seen:
@@ -280,16 +349,20 @@ def listings_like_image(summaries: list[dict], label: str, heel_mm: int = 0) -> 
     checked = 0
     for summary in summaries:
         title = str(summary.get("title") or "")
+        if summary_label(summary) not in ("", label):
+            continue
         if not title_matches_style(title, label, heel_mm, ""):
             continue
         checked += 1
         if checked > 8:
             break
-        for listing in listings_from_summary(summary):
+        for listing in listings_from_summary(summary, label=label):
             if not title_matches_style(listing.title or title, label, heel_mm, ""):
                 continue
             if listing.id in seen:
                 continue
             seen.add(listing.id)
             listings.append(listing)
+    if label == "PUMP":
+        listings.sort(key=lambda item: 0 if {"lace", "pointed", "pointy"} & set(tokens_of(item.title)) else 1)
     return listings

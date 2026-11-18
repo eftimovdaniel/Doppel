@@ -55,6 +55,30 @@ def title_case(phrase: str) -> str:
         words.append("Levi's" if word == "levi's" else word[0].upper() + word[1:])
     return " ".join(words)
 
+def style_name(name: str, label: str) -> str:
+    word = {
+        "PUMP": "pump",
+        "SANDAL": "sandal",
+        "BOOT": "boot",
+        "LOAFER": "loafer",
+        "SNEAKER": "sneaker",
+        "HEEL": "heel",
+        "JACKET": "jacket",
+        "BAG": "bag",
+        "COAT": "coat",
+        "JEANS": "jeans",
+    }.get(label, "")
+    if not word:
+        return name
+    head, _, color = name.partition(",")
+    tokens = [token for token in tokens_of(head) if token not in color_words()]
+    plain = generic_types() | MATERIAL | {"shoulder", "hobo", "tote", "puffer", "quilted", "lace", "pointed", "stiletto", "hair", "hide"}
+    if tokens and all(token in plain or token == word for token in tokens):
+        return name
+    color = color.strip()
+    titled = title_case(word)
+    return f"{titled}, {color}" if color else titled
+
 def color_words() -> set[str]:
     found = set()
     for color in COLORS:
