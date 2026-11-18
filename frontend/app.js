@@ -378,7 +378,7 @@ function paintResult(result) {
     watch.disabled = false;
   }
   if (similar) {
-    similar.hidden = similarItems.length > 0 || (hasRows && result.identical !== false);
+    similar.hidden = similarItems.length > 0;
     similar.disabled = false;
   }
   if (status && status.textContent !== "The alert is set at today's lowest price.") {
