@@ -27,4 +27,12 @@ def from_image(image: str) -> tuple[Piece, list[Listing], list[Listing], bool]:
         return piece, [], listings_for_print(piece.pattern), False
     if piece.label not in STYLE_WORDS:
         return piece, [], [], False
-    return piece, [], listings_like_image(summaries, piece.label, piece.heel_mm), False
+    similar = listings_like_image(summaries, piece.label, piece.heel_mm)
+    if similar:
+        agreed = name_from_titles([item.title for item in similar])
+        if is_specific(agreed.name):
+            piece.name = agreed.name
+            if agreed.label in STYLE_WORDS:
+                piece.label = agreed.label
+            return piece, similar, [], True
+    return piece, [], similar, False
