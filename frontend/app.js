@@ -1,25 +1,27 @@
 const API = "";
+localStorage.removeItem("doppel-token");
+localStorage.removeItem("doppel-user");
 
-function token() {
-  return localStorage.getItem("doppel-token") || "";
+function token (){
+  return sessionStorage.getItem("doppel-token") || "";
 }
 
-function currentUser() {
+function currentUser(){
   try {
-    return JSON.parse(localStorage.getItem("doppel-user") || "null");
-  } catch {
-    return null;
+    return JSON.parse(sessionStorage.getItem("doppel-user") || "null");
+  }
+  catch {return null;
   }
 }
 
-function saveSession(data) {
-  localStorage.setItem("doppel-token", data.token);
-  localStorage.setItem("doppel-user", JSON.stringify(data.user));
+function saveSession(data){
+  sessionStorage.setItem("doppel-token", data.token);
+  sessionStorage.setItem("doppel-user", JSON.stringify(data.user));
 }
 
-function clearSession() {
-  localStorage.removeItem("doppel-token");
-  localStorage.removeItem("doppel-user");
+function clearSession(){
+  sessionStorage.removeItem("doppel-token");
+  sessionStorage.removeItem("doppel-user");
 }
 
 async function request(path, body, method = "POST") {
@@ -281,7 +283,7 @@ function initRegister() {
           clothes_size: clothes,
           shoe_size: shoes,
         });
-        localStorage.setItem("doppel-user", JSON.stringify(updated.user));
+        sessionStorage.setItem("doppel-user", JSON.stringify(updated.user));
       }
       if (!(await continuePending())) location.href = "index.html";
     } catch (error) {
@@ -416,14 +418,31 @@ function fillList(selector, items, emptyText, markCondition) {
     const photo = ebayImage(item.image);
     const heading = item.title || item.size || "Size";
     const state = markCondition ? (item.condition === "used" ? "Used" : "New") : "";
-    const detail = [state, item.size, url ? "Open on eBay" : (item.where || "eBay")].filter(Boolean).join(" · ");
+    const shop = item.where || "eBay";
+    const detail = [state, item.size, url ? `Open on ${shop}` : shop].filter(Boolean).join(" . ");
     card.innerHTML = `${photo ? `<img src="${escapeHtml(photo)}" alt="">` : ""}<div><div class="price">${escapeHtml(money(item))}</div><div class="size">${escapeHtml(detail)}</div><div class="who">${escapeHtml(heading)}</div></div>`;
     list.append(card);
   }
 }
+const SHOPS = ["zara.com", "bershka.com", "massimodutti.com", "mango.com", "vinted.com"];
+function shopHost(host) {
+  return SHOPS.some((shop) => host === shop || host.endsWith(`.${shop}`));
+}
+
+function shopHref(value) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    const ebay = host === "ebay.com" || host.endsWith(".ebay.com");
+    if (url.protocol !== "https:" || (!ebay && !shopHost(host))) return "";
+    return url.href;
+  } catch {
+    return "";
+  }
+}
 
 function ebayUrl(item) {
-  const direct = ebayHref(item.url);
+  const direct = shopHref(item.url);
   if (direct) return direct;
   const parts = String(item.id || "").split("|");
   const number = parts.length >= 2 ? parts[1] : String(item.id || "");
