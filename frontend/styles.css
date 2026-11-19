@@ -642,3 +642,12 @@ body.is-busy { cursor: progress; }
 .alert .who { font-size: 22px; letter-spacing: -0.4px; line-height: 1.15; }
 .alert .size { margin-top: 8px; font-family: "Space Mono", monospace; font-size: 12px; letter-spacing: 1px; }
 .alert .fell { color: var(--tape); }
+
+#sizes {
+  margin-top: 22px;
+  max-width: 420px;
+}
+
+#sizes .btn{
+  margin-top: 18px;
+}

@@ -163,6 +163,31 @@ function initHome() {
     note.textContent = `${user.name}  ·  clothes ${clothes}  ·  shoes ${shoes}`;
   }
 
+  const sizes = document.querySelector("#sizes");
+  if (sizes && user){
+    sizes.hidden = false;
+    sizes.clothes_size.value = user.clothes_size || "";
+    sizes.shoe_size.value = user.shoe_size || "";
+    sizes.addEventListener("submit", async(event) => {
+      event.preventDefault();
+      const status = document.querySelector("[data-status]");
+      try{
+        const updated = await request("/profile", {
+          clothes_size: sizes.clothes_size.value.trim(),
+          shoe_size: sizes.shoe_size.value.trim(),
+        });
+        sessionStorage.setItem("doppel-user", JSON.stringify(updated.user));
+        const clothes = updated.user.clothes_size || "-";
+        const shoes = updated.user.shoe_size || "-";
+        if (note) note.textContent = `${updated.user.name}  ·  clothes ${clothes}  ·  shoes ${shoes}`;
+        if (status) status.textContent = "Sizes saved! ";
+      }
+      catch (error){
+        if (status) status.textContent = error.message;
+      }
+    });
+  }
+
   const file = document.querySelector("#file");
   document.querySelector("#pick")?.addEventListener("click", () => file.click());
   file?.addEventListener("change", async () => {
