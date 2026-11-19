@@ -628,3 +628,17 @@ body.is-busy { cursor: progress; }
   .marquee span, .scan::after { animation: none; }
   .btn, .card { transition: none; }
 }
+
+.alerts { display: grid; gap: 12px; max-width: 760px; margin-top: 28px; }
+.alert {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  border: var(--line) solid var(--ink);
+  background: #fff;
+  padding: 16px 18px;
+}
+.alert .who { font-size: 22px; letter-spacing: -0.4px; line-height: 1.15; }
+.alert .size { margin-top: 8px; font-family: "Space Mono", monospace; font-size: 12px; letter-spacing: 1px; }
+.alert .fell { color: var(--tape); }
