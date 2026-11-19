@@ -1,0 +1,35 @@
+<html lang = "en">
+    <head>
+        <meta charset="utf-8">
+        <meta name = "viewport" content="width=device-width, initial-scale=1">
+        <title>Doppel - Alerts</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="styles.css">
+    </head>
+    <body data-page = "alerts">
+        <header>
+    <a class="brand" href="index.html">
+      <span class="mark" aria-hidden="true"><b>D</b><span class="stripes"><i></i><i></i></span></span>
+      <span>
+        <span class="word">DOPP<em>E</em>L</span>
+        <span class="rule"></span>
+      </span>
+    </a>
+    <nav>
+      <a href="index.html">New photo</a>
+      <a class="login" data-account href="login.html">Login</a>
+    </nav>
+  </header>
+  <div class="marquee" aria-hidden="true"><span>SEE IT / NAME IT / WAIT FOR IT / SEE IT / NAME IT / WAIT FOR IT / </span></div>
+  <main class="page">
+    <div class="kicker">YOUR ALERTS</div>
+    <h2 class="found">Watching</h2>
+    <p class="note" data-status></p>
+    <p class="sub" id="alert-empty" hidden>No alerts yet. Watch a price from a result.</p>
+    <div id="alert-list"></div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

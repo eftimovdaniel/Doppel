@@ -494,4 +494,34 @@ document.addEventListener("DOMContentLoaded", () => {
   if (page === "forgot") initForgot();
   if (page === "register") initRegister();
   if (page === "results") initResults();
+  if (page == "alerts") initAlerts();
 });
+
+async function initAlerts() {
+  if(!token()){
+    location.href = "login.html";
+    return;
+  }
+  const list = document.querySelector("#alert-list");
+  const empty = document.querySelector("#alert-empty");
+  const status = document.querySelector("[data-status]");
+  try {
+    const data = await request("/alerts", undefined, "GET");
+    const alerts = data.alerts || [];
+    if(!alerts.length){
+      empty.hidden = false;
+      return ;
+    }
+    list.className = "alerts";
+    list.innerHTML = alerts.map((alert)=> {
+      const price = Number(alert.last_price).toFixed(2);
+      const state = alert.dropped ? "PRICE DROPPED" : "WATCHING";
+      const mark = alert.dropped ? "fell" : "";
+      const size = alert.size || "-";
+      return `<article class="alert"><div><div class="who">${escapeHtml(alert.model_name)}</div><div class="size">${escapeHtml(size)} · ${escapeHtml((alert.kind || "").toUpperCase())} · <span class="${mark}">${state}</span></div></div><div class="price">${price}</div></article>`;
+    }).join("");
+  }
+  catch (error){
+    if (status) status.textContent = error.message;
+  }
+}
